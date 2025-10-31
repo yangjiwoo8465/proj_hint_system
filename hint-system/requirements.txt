@@ -8,6 +8,7 @@
 transformers>=4.36.0
 accelerate>=0.25.0
 bitsandbytes>=0.41.0  # 양자화 지원
+torchvision>=0.24.0  # PyTorch 2.9.0 호환
 
 # UI Framework
 gradio>=4.12.0
@@ -16,10 +17,11 @@ gradio>=4.12.0
 requests>=2.31.0
 python-dotenv>=1.0.0
 tqdm>=4.66.0
+openai>=1.0.0
 
 # 모델 관련
 sentencepiece>=0.1.99
-protobuf>=3.20.0
+protobuf>=3.20.0,<5.0.0
 
 # 추가 패키지 (필요시)
 # pandas>=2.0.0

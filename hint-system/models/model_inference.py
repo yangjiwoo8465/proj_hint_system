@@ -120,14 +120,14 @@ class HuggingFaceInference(ModelInference):
             inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
             input_length = inputs['input_ids'].shape[1]
 
-            # 생성 (temperature 조절)
+            # 생성 (temperature 조절) - 일관성을 위해 낮은 temperature 강제
             outputs = self.model.generate(
                 **inputs,
-                max_new_tokens=30,  # 짧은 질문 1개만 (속도 개선: 150→30)
-                temperature=temperature,  # UI에서 조절 가능
-                top_p=0.9,  # 안정적인 샘플링
+                max_new_tokens=50,  # 짧은 질문 1개 (30→50으로 증가)
+                temperature=max(0.3, min(temperature, 0.5)),  # 0.3~0.5로 제한 (일관성 향상)
+                top_p=0.85,  # 안정적인 샘플링 (0.9→0.85)
                 do_sample=True,
-                repetition_penalty=1.2,  # 반복 억제
+                repetition_penalty=1.15,  # 반복 억제 (1.2→1.15)
                 pad_token_id=self.tokenizer.eos_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
                 cache_implementation="static"  # Phi-3.5 DynamicCache 에러 방지
@@ -172,11 +172,28 @@ class HuggingFaceInference(ModelInference):
 
         clean = raw_output.strip()
 
-        # 0단계: 첫 물음표까지만 추출 (나머지 설명/코드 무시)
+        # 0-1단계: 첫 물음표까지만 추출 (나머지 설명/코드 무시)
         first_question_match = re.search(r'^[^?]+\?', clean, re.MULTILINE)
         if first_question_match:
             clean = first_question_match.group(0).strip()
             print(f"[DEBUG] 첫 질문만 추출: {clean}")
+
+            # 첫 질문이 추출되었고, 15자 이상이면 바로 검증 후 반환
+            if len(clean) >= 15:
+                # 한국어 비율만 체크 (다른 필터는 skip)
+                korean_chars = len(re.findall(r'[가-힣]', clean))
+                total_chars = len(clean.replace(' ', '').replace('?', ''))
+
+                if total_chars > 0 and korean_chars / total_chars >= 0.6:
+                    # 존댓말 체크만 추가
+                    formal_endings = ['요?', '세요?', '까요?', '습니까?', '입니까?']
+                    if not any(clean.endswith(ending) for ending in formal_endings):
+                        print(f"[DEBUG] ✅ 첫 질문 통과: {clean}")
+                        return clean
+                    else:
+                        print(f"[DEBUG] 존댓말 종결 필터링: {clean}")
+                else:
+                    print(f"[DEBUG] 한국어 비율 부족: {korean_chars}/{total_chars} = {korean_chars/total_chars:.2f}")
 
         # 영어 출력 필터링 강화 (한국어 전용)
         # 1단계: 백틱/코드 블록 제거
@@ -289,24 +306,37 @@ class HuggingFaceInference(ModelInference):
                     print(f"[DEBUG] 코드 반복 필터링: {sentence[:50]}...")
                     continue
 
-            # 막연한 지시문 및 이상한 표현 필터링 (강화)
+            # 막연한 지시문 및 존댓말 표현 필터링 (반말만 허용)
             vague_patterns = [
+                # 존댓말 표현 (반말로 바꾸지 못한 경우)
                 '확인하세요', '생각해보세요', '고려하세요', '검토하세요',
                 '작성하세요', '구현하세요', '코드를 완성',
+                '물으시죠', '물으세요', '해주세요', '해주시', '주세요',
+                '~세요', '~시', '~습니다', '~입니다',
+                # 막연한 표현
                 '어떤 부분이 잘못', '무엇이 문제', '어디가 틀렸',
                 '대화하기 위해', '요청하는지',
-                '물으시죠', '물으세요', '해주세요', '해주시', '주세요',
                 '다시 한번', '네, 이해', '그렇다면', '그럼 지금부터',
                 '잘못했다고', '틀렸다고', '생각했습니다', '생각됩니다',
                 '핵심적인 과정', '어떤 부분을'
             ]
             if any(pattern in sentence for pattern in vague_patterns):
-                print(f"[DEBUG] 막연한 지시문 필터링: {sentence[:50]}...")
+                print(f"[DEBUG] 막연한 지시문/존댓말 필터링: {sentence[:50]}...")
                 continue
 
-            # 너무 짧거나 의미없는 문장 필터링 (20 → 30자로 상향)
-            if len(sentence) < 30:
-                print(f"[DEBUG] 너무 짧은 문장 필터링: {sentence}")
+            # 반말 확인 (질문 끝이 반말 형태인지 체크)
+            # 올바른 반말 종결: ~야?, ~니?, ~까?, ~ㄹ까?, ~거야?, ~는 거야?, ~냐?, ~을까?
+            # 잘못된 존댓말: ~요?, ~세요?, ~까요?
+            if sentence.endswith('?'):
+                formal_endings = ['요?', '세요?', '까요?', '습니까?', '입니까?']
+                if any(sentence.endswith(ending) for ending in formal_endings):
+                    print(f"[DEBUG] 존댓말 종결 필터링: {sentence[:50]}...")
+                    continue
+
+            # 너무 짧거나 의미없는 문장 필터링 (질문 형태면 15자, 아니면 30자)
+            min_length = 15 if sentence.endswith('?') else 30
+            if len(sentence) < min_length:
+                print(f"[DEBUG] 너무 짧은 문장 필터링 (최소 {min_length}자): {sentence}")
                 continue
 
             # 불완전한 문장 필터링 (끝이 이상한 경우)

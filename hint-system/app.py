@@ -38,60 +38,98 @@ class HintEvaluationApp:
             self.setup_default_models()
 
     def setup_default_models(self):
-        """기본 모델 자동 설정"""
+        """기본 모델 자동 설정 (H100 32GB 최적화)"""
         print("=" * 60)
-        print("[SETUP] 기본 모델 자동 설정 중...")
+        print("[SETUP] 기본 모델 자동 설정 중... (H100 PCIe 32GB)")
         print("=" * 60)
 
-        # Runpod 무거운 모델 (80GB VRAM 활용)
+        # H100 32GB에 최적화된 모델 구성
+        # Chat 모델: 소크라테스 질문 생성에 특화
+        # Coder 모델: 코드 분석 및 이해에 특화
         default_models = [
-            # === 무거운 Chat 모델 (질문 생성 특화) ===
-            {
-                "name": "Qwen2.5-14B-Instruct",
-                "path": "Qwen/Qwen2.5-14B-Instruct",
-                "quantize": False,
-                "size": "14B",
-                "type": "chat"
-            },
-            {
-                "name": "Qwen2.5-7B-Instruct",
-                "path": "Qwen/Qwen2.5-7B-Instruct",
-                "quantize": False,
-                "size": "7B",
-                "type": "chat"
-            },
-            {
-                "name": "Llama-3.1-8B-Instruct",
-                "path": "meta-llama/Meta-Llama-3.1-8B-Instruct",
-                "quantize": False,
-                "size": "8B",
-                "type": "chat"
-            },
+            # === Chat 모델 (소크라테스 질문 생성 최적) ===
             {
                 "name": "Qwen2.5-32B-Instruct (4-bit)",
                 "path": "Qwen/Qwen2.5-32B-Instruct",
                 "quantize": True,
-                "size": "32B (4-bit)",
-                "type": "chat"
+                "size": "32B (4-bit ~20GB)",
+                "type": "chat",
+                "priority": 1
+            },
+            {
+                "name": "Qwen2.5-14B-Instruct",
+                "path": "Qwen/Qwen2.5-14B-Instruct",
+                "quantize": False,
+                "size": "14B (full ~28GB)",
+                "type": "chat",
+                "priority": 2
+            },
+            {
+                "name": "Llama-3.1-8B-Instruct",
+                "path": "meta-llama/Llama-3.1-8B-Instruct",
+                "quantize": False,
+                "size": "8B (full ~16GB)",
+                "type": "chat",
+                "priority": 3
+            },
+            {
+                "name": "Mistral-7B-Instruct-v0.3",
+                "path": "mistralai/Mistral-7B-Instruct-v0.3",
+                "quantize": False,
+                "size": "7B (full ~14GB)",
+                "type": "chat",
+                "priority": 4
             },
 
-            # === 경량 모델 (비교용) ===
+            # === Coder 모델 (코드 분석 특화) ===
+            {
+                "name": "Qwen2.5-Coder-32B (4-bit)",
+                "path": "Qwen/Qwen2.5-Coder-32B-Instruct",
+                "quantize": True,
+                "size": "32B (4-bit ~20GB)",
+                "type": "coder",
+                "priority": 5
+            },
+            {
+                "name": "DeepSeek-Coder-33B (4-bit)",
+                "path": "deepseek-ai/deepseek-coder-33b-instruct",
+                "quantize": True,
+                "size": "33B (4-bit ~20GB)",
+                "type": "coder",
+                "priority": 6
+            },
+
+            # === 경량 비교 모델 ===
+            {
+                "name": "Qwen2.5-7B-Instruct",
+                "path": "Qwen/Qwen2.5-7B-Instruct",
+                "quantize": False,
+                "size": "7B (full ~14GB)",
+                "type": "chat",
+                "priority": 7
+            },
             {
                 "name": "Qwen2.5-3B-Instruct",
                 "path": "Qwen/Qwen2.5-3B-Instruct",
                 "quantize": False,
-                "size": "3B",
-                "type": "chat"
+                "size": "3B (full ~6GB)",
+                "type": "chat",
+                "priority": 8
             }
         ]
 
+        # 우선순위 순으로 정렬
+        default_models.sort(key=lambda x: x.get('priority', 999))
+
         for model_info in default_models:
             try:
-                model_type_label = "Chat/대화" if model_info.get('type') == 'chat' else "Coder"
+                model_type_label = "💬 Chat" if model_info.get('type') == 'chat' else "💻 Coder"
 
                 print(f"\n[{model_type_label}] {model_info['name']} 설정 중...")
+                print(f"  ├─ 크기: {model_info['size']}")
                 if model_info.get('quantize'):
-                    print(f"  → 4-bit 양자화 사용 (메모리 1/4 절약)")
+                    print(f"  └─ 4-bit 양자화 사용 (메모리 절약)")
+
                 self.model_manager.add_huggingface_model(
                     model_info['name'],
                     model_info['path'],
@@ -126,6 +164,7 @@ class HintEvaluationApp:
 
         print("\n" + "=" * 60)
         print(f"[OK] 총 {len(self.model_manager.get_available_models())}개 모델 준비 완료!")
+        print(f"[INFO] H100 PCIe 32GB 기준 동시 로드 가능: 1~2개 모델")
         print("=" * 60)
 
     def load_problems(self) -> List[Dict]:
@@ -312,7 +351,7 @@ class HintEvaluationApp:
                 if all(kw in user_code for kw in key_keywords[:2]):  # 주요 키워드 2개만 체크
                     completed_step = i + 1
 
-        # 다음에 해야 할 작업들을 큰 그림으로 묶기
+        # 남은 모든 단계를 큰 그림으로 묶기 (전체적인 힌트)
         next_hint = ""
         remaining_steps = []
 
@@ -322,29 +361,35 @@ class HintEvaluationApp:
                 step = logic_steps[i]
                 remaining_steps.append(step.get('goal', ''))
 
-            # 조건문/반복문 패턴 감지
-            next_pattern = logic_steps[completed_step].get('code_pattern', '')
-
-            if 'if' in next_pattern:
-                # 조건문이 나오면 → 모든 조건 분기를 하나로 묶어서 설명
-                if 'elif' in next_pattern or any('elif' in logic_steps[i].get('code_pattern', '') for i in range(completed_step, len(logic_steps))):
-                    # 여러 분기 존재 → 전체 케이스 나열
-                    next_hint = f"여러 경우를 구분하여 처리 ({', '.join(remaining_steps[:4])})"
-                else:
-                    next_hint = remaining_steps[0] if remaining_steps else ""
-
-            elif 'for' in next_pattern or 'while' in next_pattern:
-                # 반복문 → 반복 목적 + 내부 작업 설명
-                loop_goal = remaining_steps[0] if remaining_steps else ""
-                inner_goals = remaining_steps[1:3] if len(remaining_steps) > 1 else []
-                if inner_goals:
-                    next_hint = f"{loop_goal}, 그 안에서 {' 및 '.join(inner_goals)}"
-                else:
-                    next_hint = loop_goal
-
+            # 남은 단계가 많으면 전체 흐름을 요약
+            if len(remaining_steps) > 3:
+                # 3단계 이상 남았으면 전체 흐름 요약
+                # 예: "함수 정의 → 모든 경우 탐색 → 최소값 찾기 → 출력"
+                next_hint = " → ".join(remaining_steps)
             else:
-                # 일반 단계 → 다음 2-3개 단계 묶기
-                next_hint = " → ".join(remaining_steps[:3]) if remaining_steps else ""
+                # 조건문/반복문 패턴 감지 (기존 로직 유지)
+                next_pattern = logic_steps[completed_step].get('code_pattern', '')
+
+                if 'if' in next_pattern:
+                    # 조건문이 나오면 → 모든 조건 분기를 하나로 묶어서 설명
+                    if 'elif' in next_pattern or any('elif' in logic_steps[i].get('code_pattern', '') for i in range(completed_step, len(logic_steps))):
+                        # 여러 분기 존재 → 전체 케이스 나열
+                        next_hint = f"여러 경우를 구분하여 처리 ({', '.join(remaining_steps[:4])})"
+                    else:
+                        next_hint = remaining_steps[0] if remaining_steps else ""
+
+                elif 'for' in next_pattern or 'while' in next_pattern:
+                    # 반복문 → 반복 목적 + 내부 작업 설명
+                    loop_goal = remaining_steps[0] if remaining_steps else ""
+                    inner_goals = remaining_steps[1:3] if len(remaining_steps) > 1 else []
+                    if inner_goals:
+                        next_hint = f"{loop_goal}, 그 안에서 {' 및 '.join(inner_goals)}"
+                    else:
+                        next_hint = loop_goal
+
+                else:
+                    # 일반 단계 → 남은 모든 단계 묶기
+                    next_hint = " → ".join(remaining_steps) if remaining_steps else ""
 
         # 코드 구조 차이 분석
         completed_desc, missing_desc = self._describe_code_diff(user_code, solution_code)
@@ -355,26 +400,102 @@ class HintEvaluationApp:
         else:
             next_step_goal = next_hint if next_hint else "코드 완성"
 
-        # V14 코드 분석 + LLM 프롬프트 (2B 모델 대상)
+        # 소크라테스 학습법 기반 힌트 프롬프트 생성 (반말)
         # 사용자 코드 분석
         code_analysis = self._analyze_user_code(user_code)
 
         # 프롬프트에 포함할 분석 정보
         similar_count = len(code_analysis.get('similar_lines', []))
         if_count = user_code.count('if ')
+        for_count = user_code.count('for ')
+        while_count = user_code.count('while ')
         input_count = user_code.count('input(')
         print_count = user_code.count('print(')
 
-        # V16: 초단순 Few-shot (설명 없이 예시만, 물음표 강제)
-        prompt = f"""학생이 "{next_step_goal}" 못함.
-코드: 비슷한 줄 {similar_count}개, if {if_count}개, input {input_count}번
+        # 사용자가 막힌 부분 상세 분석
+        problem_context = f"""
+## 문제 상황
+- 학생이 막힌 단계: {next_step_goal}
+- 이미 완료한 부분: {completed_desc}
+- 아직 구현 안 된 부분: {missing_desc}
 
-질문 예시:
-Q: "같은 코드 10번 복사하면 나중에 10군데 다 고쳐?"
-Q: "입력 100개면 손으로 100줄 쓸 거야?"
-Q: "계산 5번 반복하는데 숫자만 다르면?"
+## 학생 코드 현황
+- 반복되는 패턴: {similar_count}개 라인
+- 조건문: {if_count}개
+- 반복문: for {for_count}개, while {while_count}개
+- 입력/출력: input {input_count}번, print {print_count}번
+"""
 
-Q:"""
+        # 소크라테스 학습법 기반 프롬프트 (반말, 질문 형태)
+        # 남은 단계가 많으면 전체 흐름을 언급
+        if len(next_step_goal.split(' → ')) > 1:
+            # 전체 흐름 힌트 (구체적으로)
+            steps_list = next_step_goal.split(' → ')
+            guidance = f"""
+## 남은 전체 과정
+{next_step_goal}
+
+**매우 중요**: 학생이 이 전체 과정을 떠올릴 수 있도록 **이 문제 상황에 맞는 구체적인 질문**을 해줘.
+
+금지 사항 (절대 사용 금지):
+- 추상적 표현: "반복", "효율적", "방법", "복사 붙여넣기", "같은 코드"
+- 일반적 상황: "입력 받아서 처리", "다른 값들로 다시"
+
+대신 이렇게 (문제 상황에 맞게):
+- "가능한 모든 위치/경우를 다 확인"
+- "각 위치/경우마다 계산"
+- "그 중에서 최소값/최대값/조건 만족하는 것"
+- "몇 개의 경우가 있는지"
+
+좋은 예시:
+- "입력 받았으면 그 다음엔? 가능한 모든 위치를 다 확인하고, 각각 계산해서 비교해야 하는 거 아냐?"
+- "모든 경우를 다 시도해보고 그 중에서 제일 작은 값을 골라야 하는 거 아냐?"
+- "시작 위치가 몇 개나 가능한데? 그걸 다 확인하고 최소값을 찾아야 하는 거 아닌가?"
+"""
+        else:
+            # 다음 단계만 힌트
+            guidance = f"""
+## 학생이 막힌 부분
+{next_step_goal}
+
+이 단계를 학생이 스스로 깨닫게 **이 문제 상황에 맞는 구체적인** 질문으로 유도해줘.
+"반복", "효율적", "복사 붙여넣기" 같은 일반적 표현 대신,
+"모든 위치 확인", "각 경우마다 계산", "최소값 찾기" 같은 구체적 상황 언급.
+"""
+
+        prompt = f"""너는 프로그래밍 멘토야. 학생이 문제를 풀다가 막혔어.
+절대 답을 직접 알려주지 마. 소크라테스 학습법을 사용해서 학생 스스로 생각하게 만들어야 해.
+
+{problem_context}
+
+{guidance}
+
+## 힌트 생성 원칙
+1. **질문 형태로만 답해** - "어떻게 ~할까?" "~하면 어떻게 될까?" "~를 사용하면?"
+2. **답을 직접 말하지 마** - 코드, 변수명, 함수명 절대 언급 금지
+3. **구체적인 상황 제시** - "반복", "효율적" 같은 추상어 금지. "모든 경우 확인", "최소값 찾기" 등 구체적 표현 사용
+4. **전체 흐름을 떠올리게** - 다음 단계만이 아니라 남은 과정 전체를 생각하게
+5. **반말 사용** - 친근하고 편안한 톤으로
+6. **짧고 명확하게** - 한 문장, 최대 2문장
+
+## 좋은 힌트 예시 (문제 상황에 맞게 구체적, 반말)
+- "입력 받았으면 그 다음엔? 가능한 모든 위치를 다 확인하고, 각각 계산해서 비교해야 하는 거 아냐?"
+- "모든 경우를 다 시도해보고 그 중에서 제일 작은 값을 골라야 하는 거 아냐?"
+- "시작 위치가 몇 개나 가능한데? 그걸 다 확인하고 최소값을 찾아야 하는 거 아닌가?"
+- "각 위치마다 계산해서 비교하고, 최종적으로 뭘 출력해야 할까?"
+- "가능한 경우의 수가 몇 개나 돼? 그걸 다 확인해야 하는 거 아냐?"
+
+## 나쁜 힌트 예시 (일반적/추상적/막연함 - 절대 금지!)
+- "같은 작업을 여러 번 반복하려면 어떤 방법이 더 효율적일까?" (너무 추상적, 일반적)
+- "같은 코드를 계속 반복해서 쓰면 나중에 바꾸기가 어려울까?" (일반적 상황, 이 문제와 무관)
+- "복사 붙여넣기는 귀찮잖아?" (막연함, 뭘 해야 할지 모름)
+- "입력을 받아서 처리하는 것까지 했는데, 만약 다른 값들로..." (일반적, 이 문제와 무관)
+- "for 반복문을 사용하세요" (답을 직접 말함)
+- "count_repaint 함수를 만드세요" (함수명 언급)
+- "range()를 써보세요" (코드 직접 제시)
+- "효율적인 방법을 생각해봐" (막연함)
+
+학생에게 던질 소크라테스식 질문 (구체적, 반말, 물음표로 끝):"""
 
         return prompt
 
@@ -626,15 +747,15 @@ def create_single_page_ui(app: HintEvaluationApp):
                 )
                 model_checkboxes.append(checkbox)
 
-        # Temperature 조절 슬라이더
-        gr.Markdown("### 🌡️ Temperature 조절 (창의성 vs 일관성)")
+        # Temperature 조절 슬라이더 (0.3~0.5 범위로 제한)
+        gr.Markdown("### 🌡️ Temperature 조절 (일관성)")
         temperature_slider = gr.Slider(
-            minimum=0.1,
-            maximum=1.0,
-            value=0.8,
+            minimum=0.3,
+            maximum=0.5,
+            value=0.4,
             step=0.05,
             label="Temperature",
-            info="낮을수록 일관적/결정론적, 높을수록 창의적/다양함",
+            info="낮을수록 더 일관적 (0.3=매우 일관적, 0.5=약간 다양함)",
             interactive=True
         )
 

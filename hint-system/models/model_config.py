@@ -46,34 +46,93 @@ LOCAL_MODELS = {
     }
 }
 
-# RunPod 환경용 큰 모델들
+# RunPod 환경용 큰 모델들 (H100 PCIe 32GB/86GB 최적화)
 RUNPOD_MODELS = {
-    "qwen-32b": {
-        "name": "Qwen/Qwen2.5-Coder-32B-Instruct",
-        "type": "vllm",
+    # === Chat 모델 (소크라테스 질문 생성에 최적) ===
+    "qwen2.5-32b-instruct": {
+        "name": "Qwen/Qwen2.5-32B-Instruct",
+        "type": "huggingface",
         "max_tokens": 8192,
         "context_length": 32768,
-        "estimated_vram": "32GB+",
-        "tensor_parallel": 2,
-        "description": "고성능 코딩 모델"
+        "estimated_vram": "32GB (full) / 20GB (4-bit)",
+        "quantize": True,
+        "description": "대형 Chat 모델 - 소크라테스 질문 생성 최적"
+    },
+    "qwen2.5-14b-instruct": {
+        "name": "Qwen/Qwen2.5-14B-Instruct",
+        "type": "huggingface",
+        "max_tokens": 8192,
+        "context_length": 32768,
+        "estimated_vram": "28GB (full) / 16GB (4-bit)",
+        "quantize": False,
+        "description": "중형 Chat 모델 - 안정적인 질문 생성"
+    },
+    "llama-3.1-8b-instruct": {
+        "name": "meta-llama/Llama-3.1-8B-Instruct",
+        "type": "huggingface",
+        "max_tokens": 8192,
+        "context_length": 131072,
+        "estimated_vram": "16GB (full) / 8GB (4-bit)",
+        "quantize": False,
+        "description": "Meta Llama 3.1 - 긴 context 지원"
+    },
+    "mistral-7b-instruct": {
+        "name": "mistralai/Mistral-7B-Instruct-v0.3",
+        "type": "huggingface",
+        "max_tokens": 8192,
+        "context_length": 32768,
+        "estimated_vram": "14GB (full) / 7GB (4-bit)",
+        "quantize": False,
+        "description": "Mistral 7B - 균형잡힌 성능"
+    },
+
+    # === Coder 모델 (코드 분석에 최적) ===
+    "qwen2.5-coder-32b": {
+        "name": "Qwen/Qwen2.5-Coder-32B-Instruct",
+        "type": "huggingface",
+        "max_tokens": 8192,
+        "context_length": 32768,
+        "estimated_vram": "32GB (full) / 20GB (4-bit)",
+        "quantize": True,
+        "description": "대형 코딩 모델 - 정확한 코드 분석"
+    },
+    "deepseek-coder-33b": {
+        "name": "deepseek-ai/deepseek-coder-33b-instruct",
+        "type": "huggingface",
+        "max_tokens": 8192,
+        "context_length": 16384,
+        "estimated_vram": "33GB (full) / 20GB (4-bit)",
+        "quantize": True,
+        "description": "DeepSeek 대형 코딩 모델"
     },
     "codellama-34b": {
         "name": "codellama/CodeLlama-34b-Instruct-hf",
-        "type": "vllm",
+        "type": "huggingface",
         "max_tokens": 16384,
         "context_length": 16384,
-        "estimated_vram": "40GB+",
-        "tensor_parallel": 2,
+        "estimated_vram": "34GB (full) / 21GB (4-bit)",
+        "quantize": True,
         "description": "Meta CodeLlama 34B"
     },
-    "deepseek-33b": {
-        "name": "deepseek-ai/deepseek-coder-33b-instruct",
-        "type": "vllm",
+
+    # === 경량 비교 모델 ===
+    "qwen2.5-7b-instruct": {
+        "name": "Qwen/Qwen2.5-7B-Instruct",
+        "type": "huggingface",
         "max_tokens": 8192,
-        "context_length": 16384,
-        "estimated_vram": "40GB+",
-        "tensor_parallel": 2,
-        "description": "DeepSeek 대형 코딩 모델"
+        "context_length": 32768,
+        "estimated_vram": "14GB (full) / 7GB (4-bit)",
+        "quantize": False,
+        "description": "경량 Chat 모델 - 빠른 응답"
+    },
+    "qwen2.5-3b-instruct": {
+        "name": "Qwen/Qwen2.5-3B-Instruct",
+        "type": "huggingface",
+        "max_tokens": 4096,
+        "context_length": 32768,
+        "estimated_vram": "6GB (full) / 3GB (4-bit)",
+        "quantize": False,
+        "description": "초경량 모델 - 기본 비교용"
     }
 }
 
