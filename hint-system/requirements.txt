@@ -1,0 +1,26 @@
+# ================================================
+# Runpod 환경용 패키지 (Ubuntu 22.04, Python 3.10, CUDA 11.8)
+# ================================================
+
+# 딥러닝 프레임워크 (CUDA 11.8 호환)
+torch==2.1.0+cu118
+transformers==4.36.0
+accelerate==0.25.0
+bitsandbytes==0.41.3  # 양자화 지원
+
+# UI Framework
+gradio==4.12.0
+
+# 유틸리티
+requests==2.31.0
+python-dotenv==1.0.0
+tqdm==4.66.0
+
+# 모델 관련
+sentencepiece==0.1.99
+protobuf==3.20.3
+
+# 추가 패키지 (필요시)
+# pandas>=2.0.0
+# numpy>=1.24.0
+# pyyaml>=6.0
