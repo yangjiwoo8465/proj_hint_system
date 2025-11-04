@@ -1,0 +1,19 @@
+"""
+인증 URL 설정
+"""
+from django.urls import path
+from rest_framework_simplejwt.views import TokenRefreshView
+from . import views
+
+app_name = 'authentication'
+
+urlpatterns = [
+    path('signup/', views.signup, name='signup'),
+    path('login/', views.login, name='login'),
+    path('logout/', views.logout, name='logout'),
+    path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('user/', views.get_user_info, name='user_info'),
+    path('user/update/', views.update_user_info, name='update_user'),
+    path('user/password/', views.change_password, name='change_password'),
+    path('user/delete/', views.delete_account, name='delete_account'),
+]
