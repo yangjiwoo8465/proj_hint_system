@@ -11,7 +11,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
-      - "3306:3306"
+      - "3307:3306"
     networks:
       - hint_network
     healthcheck:
@@ -25,10 +25,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: hint_system_backend
-    command: >
-      sh -c "python manage.py migrate &&
-             python manage.py collectstatic --noinput &&
-             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4"
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4 --reload
     volumes:
       - ./backend:/app
       - static_volume:/app/staticfiles

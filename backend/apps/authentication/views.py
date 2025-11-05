@@ -151,3 +151,57 @@ def delete_account(request):
     user.is_active = False
     user.save()
     return success_response(message="회원 탈퇴가 완료되었습니다.")
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_users(request):
+    """전체 사용자 목록 조회 (관리자 전용)"""
+    if not (request.user.is_staff or request.user.is_superuser):
+        return error_response(
+            message="관리자 권한이 필요합니다.",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+
+    users = User.objects.all().order_by('-created_at')
+    serializer = UserSerializer(users, many=True)
+    return success_response(data=serializer.data)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_user_permissions(request, user_id):
+    """사용자 권한 수정 (관리자 전용)"""
+    if not (request.user.is_staff or request.user.is_superuser):
+        return error_response(
+            message="관리자 권한이 필요합니다.",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return error_response(
+            message="사용자를 찾을 수 없습니다.",
+            status_code=status.HTTP_404_NOT_FOUND
+        )
+
+    # 본인의 권한은 수정할 수 없음
+    if user.id == request.user.id:
+        return error_response(
+            message="본인의 권한은 수정할 수 없습니다.",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+
+    # is_staff, is_superuser 필드만 수정 가능
+    if 'is_staff' in request.data:
+        user.is_staff = request.data['is_staff']
+    if 'is_superuser' in request.data:
+        user.is_superuser = request.data['is_superuser']
+
+    user.save()
+
+    return success_response(
+        data=UserSerializer(user).data,
+        message="권한이 수정되었습니다."
+    )

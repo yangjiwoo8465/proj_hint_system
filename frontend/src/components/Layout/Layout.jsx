@@ -17,15 +17,17 @@ const Layout = () => {
 
   return (
     <div className="layout">
-      <nav className="sidebar">
-        <div className="sidebar-header">
+      <nav className="top-navbar">
+        <div className="navbar-brand">
           <h2>Hint System</h2>
-          <p className="user-info">{user?.username}</p>
         </div>
 
         <div className="nav-links">
-          <NavLink to="/app/coding-test" className="nav-link">
-            코딩 테스트
+          <NavLink to="/app/dashboard" className="nav-link">
+            대시보드
+          </NavLink>
+          <NavLink to="/app/problems" className="nav-link">
+            문제 선택
           </NavLink>
           <NavLink to="/app/chatbot" className="nav-link">
             문답 챗봇
@@ -33,14 +35,15 @@ const Layout = () => {
           <NavLink to="/app/mypage" className="nav-link">
             마이페이지
           </NavLink>
-          {user?.role === 'admin' && (
+          {(user?.is_staff || user?.is_superuser) && (
             <NavLink to="/app/admin" className="nav-link admin">
               관리자
             </NavLink>
           )}
         </div>
 
-        <div className="sidebar-footer">
+        <div className="navbar-user">
+          <span className="user-info">{user?.username}</span>
           <button onClick={handleLogout} className="logout-btn">
             로그아웃
           </button>

@@ -16,4 +16,6 @@ urlpatterns = [
     path('user/update/', views.update_user_info, name='update_user'),
     path('user/password/', views.change_password, name='change_password'),
     path('user/delete/', views.delete_account, name='delete_account'),
+    path('users/', views.list_users, name='list_users'),
+    path('users/<int:user_id>/permissions/', views.update_user_permissions, name='update_user_permissions'),
 ]

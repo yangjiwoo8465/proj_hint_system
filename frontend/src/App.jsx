@@ -5,10 +5,15 @@ import Layout from './components/Layout/Layout'
 
 // Pages (탭별 모듈)
 import MainPage from './pages/MainPage'
+import Dashboard from './pages/Dashboard'
+import Problems from './pages/Problems'
 import CodingTest from './pages/CodingTest'
 import Chatbot from './pages/Chatbot'
 import MyPage from './pages/MyPage'
 import AdminPanel from './pages/AdminPanel'
+import TestCaseProposal from './pages/TestCaseProposal'
+import SolutionProposal from './pages/SolutionProposal'
+import ProblemProposal from './pages/ProblemProposal'
 
 import './App.css'
 
@@ -33,9 +38,21 @@ function App() {
           )
         }
       >
-        {/* 코딩 테스트 */}
-        <Route path="coding-test" element={<CodingTest />} />
-        <Route path="coding-test/:problemId" element={<CodingTest />} />
+        {/* 대시보드 */}
+        <Route index element={<Dashboard />} />
+        <Route path="dashboard" element={<Dashboard />} />
+
+        {/* 코딩 테스트 문제 선택 */}
+        <Route path="problems" element={<Problems />} />
+
+        {/* 테스트 케이스 제안 */}
+        <Route path="test-case-proposal" element={<TestCaseProposal />} />
+
+        {/* 솔루션 제안 */}
+        <Route path="solution-proposal" element={<SolutionProposal />} />
+
+        {/* 문제 제안 */}
+        <Route path="problem-proposal" element={<ProblemProposal />} />
 
         {/* 문답 챗봇 */}
         <Route path="chatbot" element={<Chatbot />} />
@@ -47,17 +64,26 @@ function App() {
         <Route
           path="admin"
           element={
-            user?.role === 'admin' ? (
+            user?.is_staff || user?.is_superuser ? (
               <AdminPanel />
             ) : (
-              <Navigate to="/app/coding-test" replace />
+              <Navigate to="/app/dashboard" replace />
             )
           }
         />
-
-        {/* 기본 리다이렉트 */}
-        <Route index element={<Navigate to="coding-test" replace />} />
       </Route>
+
+      {/* 코딩 테스트 - 사이드바 없이 독립 실행 */}
+      <Route
+        path="/app/coding-test/:problemId"
+        element={
+          isAuthenticated ? (
+            <CodingTest />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
+      />
 
       {/* 404 */}
       <Route path="*" element={<Navigate to="/" replace />} />
