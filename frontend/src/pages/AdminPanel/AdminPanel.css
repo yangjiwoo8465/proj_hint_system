@@ -1,7 +1,8 @@
 .admin-panel {
   padding: 2rem;
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
+  min-height: 100vh;
 }
 
 .admin-header {
@@ -11,57 +12,66 @@
 .admin-header h1 {
   font-size: 2rem;
   font-weight: bold;
-  margin-bottom: 0.5rem;
-  color: #333;
+  color: black;
+  letter-spacing: 0.05em;
 }
 
-.admin-header p {
-  color: #666;
-  font-size: 1rem;
-}
-
-.stats-overview {
+/* 레이아웃: 왼쪽 사이드바 + 오른쪽 메인 */
+.admin-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
+  grid-template-columns: 300px 1fr;
+  gap: 2rem;
 }
 
-.stat-box {
+/* 왼쪽 사이드바 - 통계 박스 */
+.admin-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.stat-box-sidebar {
   background: white;
   border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 3rem 2rem;
   text-align: center;
-  transition: transform 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e0e0e0;
+  min-height: 250px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
 }
 
-.stat-box:hover {
-  transform: translateY(-4px);
-}
-
-.stat-icon {
-  font-size: 3rem;
-  margin-bottom: 0.75rem;
-}
-
-.stat-value {
-  font-size: 2.5rem;
-  font-weight: bold;
-  color: #667eea;
-  margin-bottom: 0.5rem;
-}
-
-.stat-label {
-  font-size: 0.9rem;
+.stat-label-sidebar {
+  font-size: 1rem;
   color: #666;
+  font-weight: 500;
+}
+
+.stat-value-sidebar {
+  font-size: 4rem;
+  font-weight: bold;
+  color: #000;
+}
+
+/* 오른쪽 메인 영역 */
+.admin-main {
+  display: flex;
+  flex-direction: column;
 }
 
 .admin-tabs {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 2rem;
-  border-bottom: 2px solid #e0e0e0;
+  border-bottom: none;
+  background: white;
+  border-radius: 12px 12px 0 0;
+  padding: 0.5rem 0.5rem 0 0.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .admin-tabs button {
@@ -69,21 +79,34 @@
   border: none;
   background: none;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 400;
   color: #666;
   cursor: pointer;
   transition: all 0.3s;
   border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
+  position: relative;
+  letter-spacing: 0;
 }
 
 .admin-tabs button.active {
-  color: #667eea;
-  border-bottom-color: #667eea;
+  color: #000000;
+  border-bottom: 3px solid #000000;
 }
 
 .admin-tabs button:hover {
-  color: #667eea;
+  color: #000000;
+}
+
+/* 알림 뱃지 */
+.notification-badge {
+  display: inline-block;
+  background: #ff4444;
+  color: white;
+  font-size: 0.7rem;
+  padding: 0.125rem 0.4rem;
+  border-radius: 10px;
+  margin-left: 0.5rem;
+  vertical-align: middle;
 }
 
 .admin-content {
@@ -144,13 +167,13 @@
 }
 
 .model-card:hover {
-  border-color: #667eea;
+  border-color: #000000;
   transform: translateY(-2px);
 }
 
 .model-card.selected {
-  border-color: #667eea;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border-color: #000000;
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .model-name {
@@ -169,7 +192,7 @@
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
-  background: #667eea;
+  background: #000000;
   color: white;
   padding: 0.25rem 0.75rem;
   border-radius: 12px;
@@ -188,7 +211,7 @@
   flex: 1;
   height: 6px;
   border-radius: 3px;
-  background: linear-gradient(to right, #667eea, #764ba2);
+  background: #2d2d2d;
   outline: none;
   -webkit-appearance: none;
 }
@@ -200,7 +223,7 @@
   height: 20px;
   border-radius: 50%;
   background: white;
-  border: 3px solid #667eea;
+  border: 3px solid #000000;
   cursor: pointer;
 }
 
@@ -209,14 +232,14 @@
   height: 20px;
   border-radius: 50%;
   background: white;
-  border: 3px solid #667eea;
+  border: 3px solid #000000;
   cursor: pointer;
 }
 
 .temperature-value {
   font-size: 1.5rem;
   font-weight: bold;
-  color: #667eea;
+  color: #000000;
   min-width: 50px;
   text-align: center;
 }
@@ -230,19 +253,20 @@
 
 .save-config-btn {
   padding: 0.875rem 2rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #000000;
   color: white;
   border: none;
   border-radius: 8px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: all 0.3s;
   width: 100%;
 }
 
 .save-config-btn:hover:not(:disabled) {
   transform: translateY(-2px);
+  background: #1a1a1a;
 }
 
 .save-config-btn:disabled {
@@ -327,33 +351,51 @@
 }
 
 .action-btn {
-  padding: 0.375rem 0.875rem;
+  padding: 0.5rem 1rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 20px;
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
+/* 활성화/비활성화 버튼 */
 .action-btn.toggle {
-  background: #e3f2fd;
-  color: #2196f3;
+  background: #4caf50;
+  color: white;
 }
 
 .action-btn.toggle:hover {
-  background: #2196f3;
+  background: #45a049;
+}
+
+/* 권한 관리 버튼 */
+.action-btn.role {
+  background: #ff9800;
   color: white;
 }
 
+.action-btn.role:hover:not(:disabled) {
+  background: #f57c00;
+}
+
+.action-btn.role:disabled,
+.action-btn.role.disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* 삭제 버튼 */
 .action-btn.delete {
-  background: #ffebee;
-  color: #f44336;
+  background: #f44336;
+  color: white;
 }
 
 .action-btn.delete:hover {
-  background: #f44336;
-  color: white;
+  background: #d32f2f;
 }
 
 /* Problems Section */
@@ -373,7 +415,7 @@
   background: #f8f9fa;
   border-radius: 8px;
   padding: 1.5rem;
-  border-left: 4px solid #667eea;
+  border-left: 4px solid #000000;
   transition: transform 0.2s;
 }
 
@@ -437,18 +479,37 @@
   color: #999;
 }
 
+@media (max-width: 1024px) {
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-sidebar {
+    flex-direction: row;
+  }
+
+  .stat-box-sidebar {
+    min-height: 200px;
+  }
+}
+
 @media (max-width: 768px) {
   .admin-panel {
     padding: 1rem;
   }
 
-  .stats-overview {
-    grid-template-columns: repeat(2, 1fr);
+  .admin-sidebar {
+    flex-direction: column;
   }
 
   .admin-tabs {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-tabs button {
+    font-size: 0.85rem;
+    padding: 0.75rem 1rem;
   }
 
   .model-selector {
@@ -457,10 +518,24 @@
 
   .users-table {
     font-size: 0.85rem;
+    overflow-x: auto;
+  }
+
+  .users-table table {
+    min-width: 800px;
   }
 
   .problems-grid {
     grid-template-columns: 1fr;
+  }
+
+  .table-actions {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .action-btn {
+    width: 100%;
   }
 }
 
@@ -483,13 +558,13 @@
 }
 
 .mode-option:hover {
-  border-color: #667eea;
+  border-color: #000000;
   background: #f8f9fa;
 }
 
 .mode-option.selected {
-  border-color: #667eea;
-  background: #eff2ff;
+  border-color: #000000;
+  background: #f0f0f0;
 }
 
 .mode-option input[type='radio'] {
@@ -535,12 +610,12 @@
 
 .api-key-input input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #000000;
 }
 
 .get-api-key-link {
   display: inline-block;
-  color: #667eea;
+  color: #000000;
   text-decoration: none;
   font-size: 0.9rem;
   font-weight: 600;
@@ -548,7 +623,7 @@
 }
 
 .get-api-key-link:hover {
-  color: #764ba2;
+  color: #1a1a1a;
   text-decoration: underline;
 }
 

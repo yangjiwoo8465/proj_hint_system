@@ -2,7 +2,7 @@
  * 메인 레이아웃 컴포넌트
  */
 import React from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { logout } from '@store/authSlice'
 import './Layout.css'
@@ -10,28 +10,33 @@ import './Layout.css'
 const Layout = () => {
   const { user } = useSelector((state) => state.auth)
   const dispatch = useDispatch()
+  const navigate = useNavigate()
 
   const handleLogout = () => {
     dispatch(logout())
+    navigate('/')
+  }
+
+  const handleLogoClick = () => {
+    navigate('/')
   }
 
   return (
     <div className="layout">
       <nav className="top-navbar">
-        <div className="navbar-brand">
-          <h2>Hint System</h2>
-        </div>
-
-        <div className="nav-links">
-          <NavLink to="/app/dashboard" className="nav-link">
-            대시보드
-          </NavLink>
+        <div className="nav-left">
+          <div className="navbar-brand" onClick={handleLogoClick}>
+            <span className="logo-symbol">π</span>
+          </div>
           <NavLink to="/app/problems" className="nav-link">
             문제 선택
           </NavLink>
           <NavLink to="/app/chatbot" className="nav-link">
             문답 챗봇
           </NavLink>
+        </div>
+
+        <div className="nav-right">
           <NavLink to="/app/mypage" className="nav-link">
             마이페이지
           </NavLink>
@@ -40,10 +45,6 @@ const Layout = () => {
               관리자
             </NavLink>
           )}
-        </div>
-
-        <div className="navbar-user">
-          <span className="user-info">{user?.username}</span>
           <button onClick={handleLogout} className="logout-btn">
             로그아웃
           </button>

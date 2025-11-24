@@ -33,9 +33,9 @@
 }
 
 .filter-btn.active {
-  background: #667eea;
+  background: #333;
   color: white;
-  border-color: #667eea;
+  border-color: #333;
 }
 
 .testcases-layout {
@@ -63,12 +63,12 @@
 }
 
 .proposal-item:hover {
-  border-color: #667eea;
+  border-color: #333;
   background: #f8f9fa;
 }
 
 .proposal-item.selected {
-  border-color: #667eea;
+  border-color: #333;
   background: #eff2ff;
 }
 
@@ -81,7 +81,7 @@
 
 .proposal-problem {
   font-weight: 600;
-  color: #667eea;
+  color: #333;
 }
 
 .proposal-status {
@@ -195,9 +195,9 @@
   border: 2px solid #e0e0e0;
 }
 
-.test-btn {
+.sol-test-btn {
   padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #333;
   color: white;
   border: none;
   border-radius: 8px;
@@ -208,12 +208,12 @@
   margin-top: 1rem;
 }
 
-.test-btn:hover:not(:disabled) {
+.sol-test-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-.test-btn:disabled {
+.sol-test-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -259,7 +259,7 @@
 
 .review-comment-input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #333;
 }
 
 .detail-actions {
@@ -269,8 +269,8 @@
   margin-top: 2rem;
 }
 
-.reject-btn,
-.approve-btn {
+.sol-reject-btn,
+.sol-approve-btn {
   padding: 0.75rem 2rem;
   border: none;
   border-radius: 8px;
@@ -280,23 +280,23 @@
   transition: all 0.3s;
 }
 
-.reject-btn {
+.sol-reject-btn {
   background: #f44336;
   color: white;
 }
 
-.reject-btn:hover {
+.sol-reject-btn:hover {
   background: #d32f2f;
   transform: translateY(-2px);
 }
 
-.approve-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.sol-approve-btn {
+  background: #333;
   color: white;
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
-.approve-btn:hover {
+.sol-approve-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }

@@ -3,7 +3,22 @@
  */
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'
+// 자동으로 현재 호스트 감지 (localhost 또는 네트워크 IP)
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL
+  }
+
+  const hostname = window.location.hostname
+  // localhost, 127.0.0.1이면 localhost 사용
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:8000/api/v1'
+  }
+  // 그 외의 경우 (192.168.x.x 등) 동일한 호스트의 8000 포트 사용
+  return `http://${hostname}:8000/api/v1`
+}
+
+const API_BASE_URL = getApiBaseUrl()
 
 // Axios 인스턴스 생성
 const api = axios.create({

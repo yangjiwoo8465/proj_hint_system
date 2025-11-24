@@ -126,7 +126,7 @@ function TestCasesTab({
                   />
                 </div>
                 <button
-                  className="test-btn"
+                  className="tc-test-btn"
                   onClick={handleTestProposal}
                   disabled={testLoading}
                 >
@@ -154,13 +154,13 @@ function TestCasesTab({
 
               <div className="detail-actions">
                 <button
-                  className="reject-btn"
+                  className="tc-reject-btn"
                   onClick={handleRejectProposal}
                 >
                   거부
                 </button>
                 <button
-                  className="approve-btn"
+                  className="tc-approve-btn"
                   onClick={handleApproveProposal}
                 >
                   승인

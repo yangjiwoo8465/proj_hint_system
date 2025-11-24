@@ -10,6 +10,16 @@ from .ai_config_api import (
     load_local_model,
     unload_local_model
 )
+from .roadmap_api import (
+    submit_survey,
+    get_roadmap,
+    list_roadmaps,
+    delete_roadmap,
+    activate_roadmap,
+    get_badges,
+    get_user_badges,
+    get_user_goals
+)
 
 app_name = 'coding_test'
 
@@ -51,4 +61,16 @@ urlpatterns = [
     path('ai-config/update/', update_ai_config, name='update_ai_config'),
     path('ai-config/load-model/', load_local_model, name='load_local_model'),
     path('ai-config/unload-model/', unload_local_model, name='unload_local_model'),
+
+    # 설문조사 & 로드맵
+    path('survey/', submit_survey, name='submit_survey'),
+    path('roadmap/', get_roadmap, name='get_roadmap'),
+    path('roadmaps/', list_roadmaps, name='list_roadmaps'),
+    path('roadmaps/<int:roadmap_id>/delete/', delete_roadmap, name='delete_roadmap'),
+    path('roadmaps/<int:roadmap_id>/activate/', activate_roadmap, name='activate_roadmap'),
+
+    # 뱃지 & 목표
+    path('badges/', get_badges, name='get_badges'),
+    path('user-badges/', get_user_badges, name='get_user_badges'),
+    path('user-goals/', get_user_goals, name='get_user_goals'),
 ]

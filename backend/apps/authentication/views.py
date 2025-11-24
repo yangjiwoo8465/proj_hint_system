@@ -7,13 +7,15 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from common.utils import success_response, error_response
-from .models import User
+from .models import User, EmailVerificationCode
 from .serializers import (
     UserSerializer,
     SignupSerializer,
     LoginSerializer,
     PasswordChangeSerializer
 )
+from django.core.mail import send_mail
+from django.conf import settings
 
 
 @api_view(['POST'])
@@ -163,7 +165,8 @@ def list_users(request):
             status_code=status.HTTP_403_FORBIDDEN
         )
 
-    users = User.objects.all().order_by('-created_at')
+    # 활성화된 사용자만 조회
+    users = User.objects.filter(is_active=True).order_by('-created_at')
     serializer = UserSerializer(users, many=True)
     return success_response(data=serializer.data)
 
@@ -204,4 +207,140 @@ def update_user_permissions(request, user_id):
     return success_response(
         data=UserSerializer(user).data,
         message="권한이 수정되었습니다."
+    )
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_user(request, user_id):
+    """사용자 삭제 (관리자 전용) - 실제로는 비활성화 처리"""
+    if not (request.user.is_staff or request.user.is_superuser):
+        return error_response(
+            message="관리자 권한이 필요합니다.",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return error_response(
+            message="사용자를 찾을 수 없습니다.",
+            status_code=status.HTTP_404_NOT_FOUND
+        )
+
+    # 본인은 삭제 불가
+    if user.id == request.user.id:
+        return error_response(
+            message="본인은 삭제할 수 없습니다.",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 소프트 삭제 (비활성화)
+    user.is_active = False
+    user.save()
+
+    return success_response(
+        message="사용자가 삭제되었습니다."
+    )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def send_verification_email(request):
+    """이메일 인증 코드 전송"""
+    email = request.data.get('email')
+
+    if not email:
+        return error_response(
+            message="이메일을 입력해주세요.",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 이미 가입된 이메일인지 확인
+    if User.objects.filter(email=email).exists():
+        return error_response(
+            message="이미 사용 중인 이메일입니다.",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 기존 인증 코드 삭제
+    EmailVerificationCode.objects.filter(email=email, is_verified=False).delete()
+
+    # 새 인증 코드 생성
+    verification = EmailVerificationCode.create_verification_code(email)
+
+    # 이메일 전송 (개발 환경에서는 콘솔에만 출력)
+    try:
+        send_mail(
+            subject='[P[AI]] 이메일 인증 코드',
+            message=f'인증 코드: {verification.code}\n\n이 코드는 10분간 유효합니다.',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=False,
+        )
+        print(f"[이메일 인증] {email} -> 코드: {verification.code}")
+    except Exception as e:
+        print(f"[이메일 전송 실패] {e}")
+        # 개발 환경에서는 실패해도 계속 진행 (콘솔에 코드 출력됨)
+
+    # 개발 환경에서는 응답에 코드 포함 (실제 운영에서는 제거해야 함)
+    response_data = {"expires_in_minutes": 10}
+    if settings.DEBUG:
+        response_data["verification_code"] = verification.code  # 개발 환경에서만
+
+    return success_response(
+        message="인증 코드가 이메일로 전송되었습니다.",
+        data=response_data
+    )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_email_code(request):
+    """이메일 인증 코드 확인"""
+    email = request.data.get('email')
+    code = request.data.get('code')
+
+    print(f"[인증 코드 확인] email: {email}, code: {code}")
+
+    if not email or not code:
+        print(f"[인증 실패] 이메일 또는 코드 누락")
+        return error_response(
+            message="이메일과 인증 코드를 입력해주세요.",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 최근 인증 코드 조회
+    try:
+        verification = EmailVerificationCode.objects.filter(
+            email=email,
+            code=code,
+            is_verified=False
+        ).latest('created_at')
+        print(f"[인증 코드 발견] {verification.email} - {verification.code} (만료: {verification.expires_at})")
+    except EmailVerificationCode.DoesNotExist:
+        print(f"[인증 실패] 유효하지 않은 인증 코드. email={email}, code={code}")
+        # 디버깅: 해당 이메일의 모든 코드 확인
+        all_codes = EmailVerificationCode.objects.filter(email=email).values('code', 'is_verified', 'created_at')
+        print(f"[디버깅] {email}의 모든 인증 코드: {list(all_codes)}")
+        return error_response(
+            message="유효하지 않은 인증 코드입니다.",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 만료 확인
+    if verification.is_expired():
+        print(f"[인증 실패] 코드 만료됨")
+        return error_response(
+            message="인증 코드가 만료되었습니다. 새로운 코드를 요청해주세요.",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 인증 완료 처리
+    verification.is_verified = True
+    verification.save()
+    print(f"[인증 성공] {email} 인증 완료")
+
+    return success_response(
+        message="이메일 인증이 완료되었습니다."
     )

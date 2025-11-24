@@ -126,6 +126,7 @@ const SolutionProposal = () => {
 
   return (
     <div className="solution-proposal-page">
+      <button className="back-btn" onClick={() => navigate('/app/problems')}>← 돌아가기</button>
       <div className="proposal-header">
         <h1>솔루션 제안하기</h1>
         <p className="header-description">
@@ -203,7 +204,7 @@ const SolutionProposal = () => {
             />
           </div>
           <button
-            className="test-btn"
+            className="sp-test-btn"
             onClick={handleTestSolution}
             disabled={isTestingCode || !solutionCode.trim()}
           >
@@ -244,13 +245,13 @@ const SolutionProposal = () => {
 
         <div className="form-actions">
           <button
-            className="cancel-btn"
+            className="sp-cancel-btn"
             onClick={() => navigate('/problems')}
           >
             취소
           </button>
           <button
-            className="submit-btn"
+            className="sp-submit-btn"
             onClick={handleSubmit}
             disabled={isSubmitting || !selectedProblemId || !solutionCode.trim()}
           >

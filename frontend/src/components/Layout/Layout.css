@@ -12,36 +12,54 @@
   justify-content: space-between;
   padding: 0 2rem;
   height: 60px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: rgba(0, 0, 0, 0.8);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   position: sticky;
   top: 0;
   z-index: 100;
 }
 
-.navbar-brand h2 {
-  margin: 0;
-  color: white;
-  font-size: 1.5rem;
-  font-weight: bold;
+/* 좌측 네비게이션: 로고 + 문제 선택 + 문답 챗봇 */
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.nav-links {
+/* 우측 네비게이션: 마이페이지 + 관리자 + 로그아웃 */
+.nav-right {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
-  flex: 1;
-  justify-content: center;
+}
+
+.navbar-brand {
+  cursor: pointer;
+  transition: transform 0.2s;
+  margin-right: 1rem;
+}
+
+.navbar-brand:hover {
+  transform: scale(1.1);
+}
+
+.logo-symbol {
+  color: white;
+  font-size: 2rem;
+  font-weight: bold;
+  font-style: italic;
 }
 
 .nav-link {
   padding: 0.5rem 1.25rem;
   color: rgba(255, 255, 255, 0.9);
   text-decoration: none;
-  font-weight: 500;
-  font-size: 0.95rem;
+  font-weight: 400;
+  font-size: 1rem;
   border-radius: 6px;
   transition: all 0.2s;
   white-space: nowrap;
+  letter-spacing: 0;
 }
 
 .nav-link:hover {
@@ -60,17 +78,6 @@
   font-weight: 600;
 }
 
-.navbar-user {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.user-info {
-  color: white;
-  font-size: 0.9rem;
-  font-weight: 500;
-}
 
 .logout-btn {
   padding: 0.5rem 1rem;
@@ -79,10 +86,11 @@
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-size: 1rem;
+  font-weight: 400;
   transition: all 0.2s;
   white-space: nowrap;
+  letter-spacing: 0;
 }
 
 .logout-btn:hover {
@@ -92,6 +100,7 @@
 .main-content {
   flex: 1;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   background: #f5f5f5;
 }
 
@@ -102,14 +111,19 @@
     flex-wrap: wrap;
   }
 
-  .nav-links {
+  .nav-left,
+  .nav-right {
     width: 100%;
     justify-content: flex-start;
     overflow-x: auto;
     padding: 0.5rem 0;
   }
 
-  .navbar-user {
-    margin-left: auto;
+  .nav-right {
+    justify-content: flex-end;
+  }
+
+  .navbar-brand {
+    margin-right: 0.5rem;
   }
 }

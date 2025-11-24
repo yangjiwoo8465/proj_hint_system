@@ -225,3 +225,7 @@ LOGGING = {
 
 # Create logs directory
 os.makedirs(BASE_DIR / 'logs', exist_ok=True)
+
+# Email Settings (개발 환경에서는 콘솔에 출력)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'noreply@pai.com'

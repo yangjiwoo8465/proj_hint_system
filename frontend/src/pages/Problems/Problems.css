@@ -2,274 +2,299 @@
   padding: 2rem;
   max-width: 1400px;
   margin: 0 auto;
+  min-height: 100vh;
 }
 
+/* 헤더: 제목과 버튼을 같은 라인에 배치 */
 .problems-header {
-  margin-bottom: 2rem;
-}
-
-.problems-header .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 2rem;
   gap: 2rem;
 }
 
-.problems-header .header-text {
+.problems-title {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #333;
+  margin: 0;
+  letter-spacing: 0.05em;
+}
+
+/* 제안 버튼 컨테이너 */
+.proposal-buttons {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.proposal-btn {
+  padding: 0.875rem 1.75rem;
+  background: #2d2d2d;
+  color: white;
+  border: 2px solid #444;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  letter-spacing: 0;
+}
+
+.proposal-btn:hover {
+  background: #3d3d3d;
+  border-color: #666;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.proposal-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* 필터 컨테이너 */
+.filters-container {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.filter-row:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.filter-label {
+  font-size: 1rem;
+  font-weight: 400;
+  color: #333;
+  min-width: 100px;
+  flex-shrink: 0;
+  letter-spacing: 0;
+}
+
+.filter-options {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
   flex: 1;
 }
 
-.problems-header h1 {
-  font-size: 2rem;
-  font-weight: bold;
-  margin-bottom: 0.5rem;
-  color: #333;
+.filter-options-wrap {
+  flex-wrap: wrap;
 }
 
-.problems-header p {
-  color: #666;
-  font-size: 1rem;
-}
-
-.header-buttons {
+.filter-checkbox {
   display: flex;
-  gap: 1rem;
-  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: #333;
+  user-select: none;
 }
 
-.propose-problem-btn,
-.propose-test-case-btn,
-.propose-solution-btn {
-  padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.filter-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #000000;
+}
+
+/* 아코디언 스타일 */
+.accordion-row {
+  display: block;
+}
+
+.accordion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  padding: 0.75rem;
+  background: #f8f8f8;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.accordion-header:hover {
+  background: #efefef;
+}
+
+.accordion-icon {
+  font-size: 0.8rem;
+  transition: transform 0.3s;
+  color: #666;
+}
+
+.accordion-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.accordion-content {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #fafafa;
+  border-radius: 8px;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
+/* 필터 액션 영역 */
+.filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid #e0e0e0;
+}
+
+.search-btn {
+  padding: 0.75rem 3rem;
+  background: #000000;
   color: white;
   border: none;
   border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.search-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  background: #1a1a1a;
+}
+
+/* 문제 테이블 */
+.problems-table-wrapper {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.problems-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.problems-table thead {
+  background: #f8f9fa;
+}
+
+.problems-table th {
+  padding: 1.25rem 1.5rem;
+  text-align: left;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.problems-table tbody tr {
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.2s;
+}
+
+.problems-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+.problems-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.problems-table td {
+  padding: 1.25rem 1.5rem;
   font-size: 0.95rem;
+  color: #333;
+}
+
+.problem-title-cell {
+  font-weight: 500;
+  color: #333;
+}
+
+.action-btn {
+  padding: 0.625rem 1.25rem;
+  background: #000000;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-.propose-problem-btn {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  box-shadow: 0 2px 8px rgba(79, 172, 254, 0.3);
-}
-
-.propose-solution-btn {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  box-shadow: 0 2px 8px rgba(245, 87, 108, 0.3);
-}
-
-.propose-problem-btn:hover,
-.propose-test-case-btn:hover,
-.propose-solution-btn:hover {
+.action-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  background: #1a1a1a;
 }
 
-.propose-problem-btn:hover {
-  box-shadow: 0 4px 12px rgba(79, 172, 254, 0.4);
-}
-
-.propose-solution-btn:hover {
-  box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
-}
-
-.propose-problem-btn:active,
-.propose-test-case-btn:active,
-.propose-solution-btn:active {
-  transform: translateY(0);
-}
-
-.problems-stats {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 1.5rem;
-  padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  color: #666;
-  font-weight: 600;
-}
-
-.problems-filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding: 1.5rem;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.filter-group label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #333;
-}
-
-.filter-group select,
-.filter-group input {
-  padding: 0.75rem;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+/* 로딩/빈 상태 */
+.loading-cell,
+.empty-cell {
+  text-align: center;
+  padding: 3rem;
+  color: #999;
   font-size: 1rem;
-  transition: border-color 0.3s;
 }
 
-.filter-group select:focus,
-.filter-group input:focus {
-  outline: none;
-  border-color: #667eea;
-}
+/* 반응형 */
+@media (max-width: 1024px) {
+  .filter-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
 
-.search-group {
-  grid-column: span 2;
-}
+  .filter-label {
+    min-width: auto;
+  }
 
-.loading {
-  text-align: center;
-  padding: 3rem;
-  color: #666;
-  font-size: 1.1rem;
-}
+  .filter-actions {
+    justify-content: center;
+  }
 
-.no-problems {
-  text-align: center;
-  padding: 3rem;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.no-problems p {
-  color: #666;
-  font-size: 1.1rem;
-}
-
-.problems-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 1.5rem;
-}
-
-.problem-card {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  border-left: 4px solid #667eea;
-}
-
-.problem-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-}
-
-.problem-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.problem-number {
-  font-size: 0.9rem;
-  font-weight: bold;
-  color: #667eea;
-}
-
-.problem-title {
-  font-size: 1.2rem;
-  font-weight: bold;
-  color: #333;
-  margin-bottom: 0.5rem;
-}
-
-.problem-category {
-  font-size: 0.85rem;
-  color: #999;
-  margin-bottom: 0.75rem;
-}
-
-.problem-footer {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #f0f0f0;
-  font-size: 0.85rem;
-  color: #999;
-}
-
-.problem-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1rem;
-  gap: 1rem;
-}
-
-.problem-header h3 {
-  font-size: 1.2rem;
-  font-weight: bold;
-  color: #333;
-  flex: 1;
-}
-
-.difficulty-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  color: white;
-  font-size: 0.85rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.problem-description {
-  color: #666;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  margin-bottom: 1rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.problem-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.tag {
-  padding: 0.25rem 0.75rem;
-  background: #f0f0f0;
-  border-radius: 12px;
-  font-size: 0.85rem;
-  color: #666;
-}
-
-.problem-stats {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 1rem;
-  border-top: 1px solid #f0f0f0;
-  font-size: 0.85rem;
-  color: #999;
+  .search-btn {
+    width: 100%;
+    max-width: 300px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -277,15 +302,42 @@
     padding: 1rem;
   }
 
-  .problems-filters {
-    grid-template-columns: 1fr;
+  .problems-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
   }
 
-  .search-group {
-    grid-column: span 1;
+  .proposal-buttons {
+    width: 100%;
+    flex-direction: column;
+    gap: 0.75rem;
   }
 
-  .problems-list {
-    grid-template-columns: 1fr;
+  .proposal-btn {
+    width: 100%;
+    padding: 1rem;
+  }
+
+  .filters-container {
+    padding: 1.5rem;
+  }
+
+  .filter-options {
+    gap: 1rem;
+  }
+
+  .problems-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .problems-table {
+    min-width: 600px;
+  }
+
+  .problems-table th,
+  .problems-table td {
+    padding: 1rem;
+    font-size: 0.9rem;
   }
 }

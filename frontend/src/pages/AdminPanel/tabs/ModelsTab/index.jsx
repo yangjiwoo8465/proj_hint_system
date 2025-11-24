@@ -7,6 +7,7 @@ function ModelsTab({
   apiKey,
   setApiKey,
   modelName,
+  setModelName,
   isModelLoaded,
   aiConfigLoading,
   handleUpdateAIConfig,
@@ -121,10 +122,107 @@ function ModelsTab({
       )}
 
       <div className="section-card">
-        <h3>모델 정보</h3>
+        <h3>AI 모델 선택</h3>
         <p className="section-description">
-          사용 중인 모델: {modelName}
+          힌트 생성에 사용할 AI 모델을 선택하세요. 모든 모델은 API 키가 필요하거나 로컬 실행을 권장합니다.
         </p>
+
+        <div className="model-selector">
+          <label className={`mode-option ${modelName === 'meta-llama/Llama-3.2-3B-Instruct' ? 'selected' : ''}`}>
+            <input
+              type="radio"
+              name="modelName"
+              value="meta-llama/Llama-3.2-3B-Instruct"
+              checked={modelName === 'meta-llama/Llama-3.2-3B-Instruct'}
+              onChange={(e) => setModelName(e.target.value)}
+            />
+            <div className="mode-content">
+              <div className="mode-title">Llama 3.2 3B Instruct</div>
+              <div className="mode-description">
+                • 3B 파라미터 (경량)
+                <br/>• API 모드 지원
+                <br/>• 빠른 응답 속도
+                <br/>• 기본적인 코딩 힌트
+              </div>
+            </div>
+          </label>
+
+          <label className={`mode-option ${modelName === 'Qwen/Qwen2.5-Coder-32B-Instruct' ? 'selected' : ''}`}>
+            <input
+              type="radio"
+              name="modelName"
+              value="Qwen/Qwen2.5-Coder-32B-Instruct"
+              checked={modelName === 'Qwen/Qwen2.5-Coder-32B-Instruct'}
+              onChange={(e) => setModelName(e.target.value)}
+            />
+            <div className="mode-content">
+              <div className="mode-title">Qwen 2.5 Coder 32B</div>
+              <div className="mode-description">
+                • 32B 파라미터
+                <br/>• API 모드 지원
+                <br/>• 코딩 특화 모델
+                <br/>• 높은 품질의 힌트
+              </div>
+            </div>
+          </label>
+
+          <label className={`mode-option ${modelName === 'mistralai/Mistral-7B-Instruct-v0.3' ? 'selected' : ''}`}>
+            <input
+              type="radio"
+              name="modelName"
+              value="mistralai/Mistral-7B-Instruct-v0.3"
+              checked={modelName === 'mistralai/Mistral-7B-Instruct-v0.3'}
+              onChange={(e) => setModelName(e.target.value)}
+            />
+            <div className="mode-content">
+              <div className="mode-title">Mistral 7B Instruct</div>
+              <div className="mode-description">
+                • 7B 파라미터
+                <br/>• API 모드 지원
+                <br/>• 범용 모델
+                <br/>• 빠르고 효율적
+              </div>
+            </div>
+          </label>
+
+          <label className={`mode-option ${modelName === 'google/gemma-2-9b-it' ? 'selected' : ''}`}>
+            <input
+              type="radio"
+              name="modelName"
+              value="google/gemma-2-9b-it"
+              checked={modelName === 'google/gemma-2-9b-it'}
+              onChange={(e) => setModelName(e.target.value)}
+            />
+            <div className="mode-content">
+              <div className="mode-title">Gemma 2 9B IT</div>
+              <div className="mode-description">
+                • 9B 파라미터
+                <br/>• API 모드 지원
+                <br/>• Google 개발 모델
+                <br/>• 균형잡힌 성능
+              </div>
+            </div>
+          </label>
+
+          <label className={`mode-option ${modelName === 'ModelCloud/Brumby-14B-Base-GPTQMODEL-W4A16-v2' ? 'selected' : ''}`}>
+            <input
+              type="radio"
+              name="modelName"
+              value="ModelCloud/Brumby-14B-Base-GPTQMODEL-W4A16-v2"
+              checked={modelName === 'ModelCloud/Brumby-14B-Base-GPTQMODEL-W4A16-v2'}
+              onChange={(e) => setModelName(e.target.value)}
+            />
+            <div className="mode-content">
+              <div className="mode-title">Brumby 14B Base GPTQ</div>
+              <div className="mode-description">
+                • 14B 파라미터 (GPTQ 양자화)
+                <br/>• 로컬 모드 권장
+                <br/>• 고품질 응답
+                <br/>• 메모리 효율적 (W4A16)
+              </div>
+            </div>
+          </label>
+        </div>
       </div>
 
       <button

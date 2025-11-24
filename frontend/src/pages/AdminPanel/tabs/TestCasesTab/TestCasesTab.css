@@ -1,4 +1,4 @@
-/* Test Case Proposals Section */
+/* Test Case Proposals Section - Updated button heights to 48px */
 .notification-badge {
   display: inline-block;
   background: #ff4444;
@@ -33,9 +33,9 @@
 }
 
 .filter-btn.active {
-  background: #667eea;
+  background: #333;
   color: white;
-  border-color: #667eea;
+  border-color: #333;
 }
 
 .testcases-layout {
@@ -63,12 +63,12 @@
 }
 
 .proposal-item:hover {
-  border-color: #667eea;
+  border-color: #333;
   background: #f8f9fa;
 }
 
 .proposal-item.selected {
-  border-color: #667eea;
+  border-color: #333;
   background: #eff2ff;
 }
 
@@ -81,7 +81,7 @@
 
 .proposal-problem {
   font-weight: 600;
-  color: #667eea;
+  color: #333;
 }
 
 .proposal-status {
@@ -195,9 +195,9 @@
   border: 2px solid #e0e0e0;
 }
 
-.test-btn {
+.tc-test-btn {
   padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #333;
   color: white;
   border: none;
   border-radius: 8px;
@@ -208,12 +208,12 @@
   margin-top: 1rem;
 }
 
-.test-btn:hover:not(:disabled) {
+.tc-test-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-.test-btn:disabled {
+.tc-test-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -259,18 +259,19 @@
 
 .review-comment-input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #333;
 }
 
 .detail-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 1rem;
   margin-top: 2rem;
 }
 
-.reject-btn,
-.approve-btn {
+.tc-reject-btn,
+.tc-approve-btn {
   padding: 0.75rem 2rem;
   border: none;
   border-radius: 8px;
@@ -278,25 +279,29 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.reject-btn {
+.tc-reject-btn {
   background: #f44336;
   color: white;
 }
 
-.reject-btn:hover {
+.tc-reject-btn:hover {
   background: #d32f2f;
   transform: translateY(-2px);
 }
 
-.approve-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.tc-approve-btn {
+  background: #333;
   color: white;
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
-.approve-btn:hover {
+.tc-approve-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }

@@ -88,3 +88,23 @@ flagged/
 *.arrow
 *.hdf5
 *.h5
+
+# ================================================
+# Node / Frontend
+# ================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp
+.pnp.js
+coverage/
+.npm
+.eslintcache
+package-lock.json
+
+# ================================================
+# Database
+# ================================================
+*.sqlite3
+*.db

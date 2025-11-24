@@ -1,0 +1,84 @@
+hint_system_backend  | [2025-11-06 02:08:52 +0000] [1] [INFO] Starting gunicorn 21.2.0
+hint_system_backend  | [2025-11-06 02:08:52 +0000] [1] [INFO] Listening at: http://0.0.0.0:8000 (1)
+hint_system_backend  | [2025-11-06 02:08:52 +0000] [1] [INFO] Using worker: sync
+hint_system_backend  | [2025-11-06 02:08:52 +0000] [7] [INFO] Booting worker with pid: 7
+hint_system_backend  | [2025-11-06 02:08:52 +0000] [8] [INFO] Booting worker with pid: 8
+hint_system_backend  | [2025-11-06 02:08:52 +0000] [9] [INFO] Booting worker with pid: 9
+hint_system_backend  | [2025-11-06 02:08:52 +0000] [10] [INFO] Booting worker with pid: 10
+hint_system_backend  | Not Found: /api/v1/admin/users/
+hint_system_backend  | WARNING 2025-11-06 11:09:41,474 log Not Found: /api/v1/admin/users/
+hint_system_backend  | Not Found: /api/v1/admin/problems/
+hint_system_backend  | WARNING 2025-11-06 11:09:41,474 log Not Found: /api/v1/admin/problems/
+hint_system_backend  | Not Found: /api/v1/admin/statistics/
+hint_system_backend  | WARNING 2025-11-06 11:09:41,475 log Not Found: /api/v1/admin/statistics/
+hint_system_backend  | Not Found: /api/v1/admin/models/
+hint_system_backend  | WARNING 2025-11-06 11:09:41,476 log Not Found: /api/v1/admin/models/
+hint_system_backend  | Not Found: /api/v1/admin/users/
+hint_system_backend  | WARNING 2025-11-06 11:09:41,497 log Not Found: /api/v1/admin/users/
+hint_system_backend  | Not Found: /api/v1/admin/statistics/
+hint_system_backend  | WARNING 2025-11-06 11:09:41,509 log Not Found: /api/v1/admin/statistics/
+hint_system_backend  | Not Found: /api/v1/admin/models/
+hint_system_backend  | WARNING 2025-11-06 11:09:41,520 log Not Found: /api/v1/admin/models/
+hint_system_backend  | Not Found: /api/v1/admin/problems/
+hint_system_backend  | WARNING 2025-11-06 11:09:41,532 log Not Found: /api/v1/admin/problems/
+hint_system_backend  | Not Found: /api/v1/admin/models/
+hint_system_backend  | WARNING 2025-11-06 11:14:13,528 log Not Found: /api/v1/admin/models/
+hint_system_backend  | Not Found: /api/v1/admin/problems/
+hint_system_backend  | Not Found: /api/v1/admin/users/
+hint_system_backend  | WARNING 2025-11-06 11:14:13,529 log Not Found: /api/v1/admin/problems/
+hint_system_backend  | WARNING 2025-11-06 11:14:13,529 log Not Found: /api/v1/admin/users/
+hint_system_backend  | Not Found: /api/v1/admin/statistics/
+hint_system_backend  | WARNING 2025-11-06 11:14:13,531 log Not Found: /api/v1/admin/statistics/
+hint_system_backend  | Not Found: /api/v1/admin/models/
+hint_system_backend  | WARNING 2025-11-06 11:14:13,547 log Not Found: /api/v1/admin/models/
+hint_system_backend  | Not Found: /api/v1/admin/problems/
+hint_system_backend  | Not Found: /api/v1/admin/users/
+hint_system_backend  | WARNING 2025-11-06 11:14:13,560 log Not Found: /api/v1/admin/problems/
+hint_system_backend  | WARNING 2025-11-06 11:14:13,560 log Not Found: /api/v1/admin/users/
+hint_system_backend  | Not Found: /api/v1/admin/statistics/
+hint_system_backend  | WARNING 2025-11-06 11:14:13,564 log Not Found: /api/v1/admin/statistics/
+hint_system_backend  | [2025-11-06 11:15:31 +0900] [7] [INFO] Worker reloading: /app/apps/coding_test/hint_api.py modified
+hint_system_backend  | [2025-11-06 11:15:31 +0900] [7] [INFO] Worker exiting (pid: 7)
+hint_system_backend  | [2025-11-06 11:15:31 +0900] [9] [INFO] Worker reloading: /app/apps/coding_test/hint_api.py modified
+hint_system_backend  | Hugging Face API Error (Status 410): {"error":"https://api-inference.huggingface.co is no longer supported. Please use https://router.huggingface.co/hf-inference instead."}
+hint_system_backend  | [2025-11-06 11:15:31 +0900] [9] [INFO] Worker exiting (pid: 9)
+hint_system_backend  | Hugging Face API Error (Status 410): {"error":"https://api-inference.huggingface.co is no longer supported. Please use https://router.huggingface.co/hf-inference instead."}
+hint_system_backend  | [2025-11-06 02:15:32 +0000] [33] [INFO] Booting worker with pid: 33
+hint_system_backend  | [2025-11-06 02:15:32 +0000] [34] [INFO] Booting worker with pid: 34
+hint_system_backend  | [2025-11-06 11:15:32 +0900] [10] [INFO] Worker reloading: /app/apps/coding_test/hint_api.py modified
+hint_system_backend  | [2025-11-06 11:15:32 +0900] [10] [INFO] Worker exiting (pid: 10)
+hint_system_backend  | [2025-11-06 11:15:32 +0900] [8] [INFO] Worker reloading: /app/apps/coding_test/hint_api.py modified
+hint_system_backend  | Hugging Face API Error (Status 410): {"error":"https://api-inference.huggingface.co is no longer supported. Please use https://router.huggingface.co/hf-inference instead."}
+hint_system_backend  | [2025-11-06 11:15:32 +0900] [8] [INFO] Worker exiting (pid: 8)
+hint_system_backend  | Hugging Face API Error (Status 410): {"error":"https://api-inference.huggingface.co is no longer supported. Please use https://router.huggingface.co/hf-inference instead."}
+hint_system_backend  | [2025-11-06 02:15:32 +0000] [37] [INFO] Booting worker with pid: 37
+hint_system_backend  | [2025-11-06 02:15:32 +0000] [38] [INFO] Booting worker with pid: 38
+hint_system_backend  | [2025-11-06 02:15:40 +0000] [1] [INFO] Handling signal: term
+hint_system_backend  | [2025-11-06 11:15:40 +0900] [33] [INFO] Worker exiting (pid: 33)
+hint_system_backend  | [2025-11-06 11:15:40 +0900] [37] [INFO] Worker exiting (pid: 37)
+hint_system_backend  | [2025-11-06 11:15:40 +0900] [38] [INFO] Worker exiting (pid: 38)
+hint_system_backend  | [2025-11-06 11:15:40 +0900] [34] [INFO] Worker exiting (pid: 34)
+hint_system_backend  | [2025-11-06 02:15:40 +0000] [1] [INFO] Shutting down: Master
+hint_system_backend  | [2025-11-06 02:15:41 +0000] [1] [INFO] Starting gunicorn 21.2.0
+hint_system_backend  | [2025-11-06 02:15:41 +0000] [1] [INFO] Listening at: http://0.0.0.0:8000 (1)
+hint_system_backend  | [2025-11-06 02:15:41 +0000] [1] [INFO] Using worker: sync
+hint_system_backend  | [2025-11-06 02:15:41 +0000] [7] [INFO] Booting worker with pid: 7
+hint_system_backend  | [2025-11-06 02:15:41 +0000] [8] [INFO] Booting worker with pid: 8
+hint_system_backend  | [2025-11-06 02:15:41 +0000] [9] [INFO] Booting worker with pid: 9
+hint_system_backend  | [2025-11-06 02:15:41 +0000] [10] [INFO] Booting worker with pid: 10
+hint_system_backend  | Not Found: /api/v1/admin/statistics/
+hint_system_backend  | WARNING 2025-11-06 11:19:56,352 log Not Found: /api/v1/admin/statistics/
+hint_system_backend  | Not Found: /api/v1/admin/statistics/
+hint_system_backend  | WARNING 2025-11-06 11:19:56,413 log Not Found: /api/v1/admin/statistics/
+hint_system_backend  | Not Found: /api/v1/admin/users/
+hint_system_backend  | WARNING 2025-11-06 11:19:56,671 log Not Found: /api/v1/admin/users/
+hint_system_backend  | Not Found: /api/v1/admin/models/
+hint_system_backend  | WARNING 2025-11-06 11:19:56,672 log Not Found: /api/v1/admin/models/
+hint_system_backend  | Not Found: /api/v1/admin/problems/
+hint_system_backend  | WARNING 2025-11-06 11:19:56,675 log Not Found: /api/v1/admin/problems/
+hint_system_backend  | Not Found: /api/v1/admin/users/
+hint_system_backend  | WARNING 2025-11-06 11:19:56,685 log Not Found: /api/v1/admin/users/
+hint_system_backend  | Not Found: /api/v1/admin/models/
+hint_system_backend  | WARNING 2025-11-06 11:19:56,688 log Not Found: /api/v1/admin/models/
+hint_system_backend  | Not Found: /api/v1/admin/problems/
+hint_system_backend  | WARNING 2025-11-06 11:19:56,689 log Not Found: /api/v1/admin/problems/

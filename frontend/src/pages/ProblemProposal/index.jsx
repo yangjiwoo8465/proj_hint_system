@@ -24,6 +24,19 @@ const ProblemProposal = () => {
   const [tagInput, setTagInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 난이도 레벨 이름 매핑 (1~26)
+  const getLevelName = (level) => {
+    const levels = {
+      1: 'Bronze 5', 2: 'Bronze 4', 3: 'Bronze 3', 4: 'Bronze 2', 5: 'Bronze 1',
+      6: 'Silver 5', 7: 'Silver 4', 8: 'Silver 3', 9: 'Silver 2', 10: 'Silver 1',
+      11: 'Gold 5', 12: 'Gold 4', 13: 'Gold 3', 14: 'Gold 2', 15: 'Gold 1',
+      16: 'Platinum 5', 17: 'Platinum 4', 18: 'Platinum 3', 19: 'Platinum 2', 20: 'Platinum 1',
+      21: 'Diamond 5', 22: 'Diamond 4', 23: 'Diamond 3', 24: 'Diamond 2', 25: 'Diamond 1',
+      26: 'Ruby 1'
+    };
+    return levels[level] || `Level ${level}`;
+  };
+
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -117,6 +130,7 @@ const ProblemProposal = () => {
 
   return (
     <div className="problem-proposal-page">
+      <button className="back-btn" onClick={() => navigate('/app/problems')}>← 돌아가기</button>
       <div className="proposal-header">
         <h1>문제 제안하기</h1>
         <p className="header-description">
@@ -146,9 +160,9 @@ const ProblemProposal = () => {
               value={formData.level}
               onChange={(e) => handleChange('level', parseInt(e.target.value))}
             >
-              {[...Array(15)].map((_, i) => (
+              {[...Array(26)].map((_, i) => (
                 <option key={i + 1} value={i + 1}>
-                  레벨 {i + 1} {i < 5 ? '(Easy)' : i < 10 ? '(Medium)' : '(Hard)'}
+                  {getLevelName(i + 1)}
                 </option>
               ))}
             </select>
@@ -346,13 +360,13 @@ const ProblemProposal = () => {
 
         <div className="form-actions">
           <button
-            className="cancel-btn"
+            className="pp-cancel-btn"
             onClick={() => navigate('/app/problems')}
           >
             취소
           </button>
           <button
-            className="submit-btn"
+            className="pp-submit-btn"
             onClick={handleSubmit}
             disabled={isSubmitting}
           >

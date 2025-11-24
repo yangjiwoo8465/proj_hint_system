@@ -1,11 +1,12 @@
-import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import React, { useEffect } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import Layout from './components/Layout/Layout'
 
 // Pages (탭별 모듈)
 import MainPage from './pages/MainPage'
-import Dashboard from './pages/Dashboard'
+import Login from './pages/Login'
+import Signup from './pages/Signup'
 import Problems from './pages/Problems'
 import CodingTest from './pages/CodingTest'
 import Chatbot from './pages/Chatbot'
@@ -14,18 +15,27 @@ import AdminPanel from './pages/AdminPanel'
 import TestCaseProposal from './pages/TestCaseProposal'
 import SolutionProposal from './pages/SolutionProposal'
 import ProblemProposal from './pages/ProblemProposal'
+import Survey from './pages/Survey'
+import Roadmap from './pages/Roadmap'
 
 import './App.css'
 
 function App() {
   const { isAuthenticated, user } = useSelector((state) => state.auth)
+  const location = useLocation()
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
 
   return (
     <Routes>
-      {/* 메인 화면 (로그인/회원가입) */}
+      {/* 메인 화면 */}
       <Route path="/" element={<MainPage />} />
-      <Route path="/login" element={<MainPage />} />
-      <Route path="/signup" element={<MainPage />} />
+
+      {/* 로그인/회원가입 */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
 
       {/* 인증된 사용자만 접근 가능한 페이지 */}
       <Route
@@ -38,9 +48,8 @@ function App() {
           )
         }
       >
-        {/* 대시보드 */}
-        <Route index element={<Dashboard />} />
-        <Route path="dashboard" element={<Dashboard />} />
+        {/* 메인으로 리다이렉트 */}
+        <Route index element={<Navigate to="/" replace />} />
 
         {/* 코딩 테스트 문제 선택 */}
         <Route path="problems" element={<Problems />} />
@@ -60,6 +69,12 @@ function App() {
         {/* 마이페이지 */}
         <Route path="mypage" element={<MyPage />} />
 
+        {/* 설문조사 */}
+        <Route path="survey" element={<Survey />} />
+
+        {/* 로드맵 */}
+        <Route path="roadmap" element={<Roadmap />} />
+
         {/* 관리자 페이지 (관리자만) */}
         <Route
           path="admin"
@@ -67,7 +82,7 @@ function App() {
             user?.is_staff || user?.is_superuser ? (
               <AdminPanel />
             ) : (
-              <Navigate to="/app/dashboard" replace />
+              <Navigate to="/" replace />
             )
           }
         />

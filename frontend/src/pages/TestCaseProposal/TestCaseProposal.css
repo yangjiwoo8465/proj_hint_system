@@ -1,7 +1,9 @@
+/* Updated design - cleaner borders and softer appearance */
 .test-case-proposal-page {
   padding: 2rem;
   max-width: 1000px;
   margin: 0 auto;
+  min-height: 100vh;
 }
 
 .proposal-header {
@@ -11,7 +13,7 @@
 .proposal-header .back-btn {
   background: transparent;
   border: none;
-  color: #667eea;
+  color: #666;
   font-size: 1rem;
   cursor: pointer;
   padding: 0.5rem 0;
@@ -20,7 +22,7 @@
 }
 
 .proposal-header .back-btn:hover {
-  color: #764ba2;
+  color: #333;
 }
 
 .proposal-header h1 {
@@ -63,18 +65,21 @@
 .form-group select,
 .form-group textarea {
   padding: 0.75rem;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
   font-size: 1rem;
   font-family: inherit;
-  transition: border-color 0.3s;
+  transition: all 0.3s;
   resize: vertical;
+  background: #fafafa;
 }
 
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #333;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .form-group small {
@@ -114,14 +119,15 @@
 .example-item {
   background: white;
   padding: 1rem;
-  border-radius: 8px;
+  border-radius: 6px;
   margin-bottom: 0.75rem;
-  border-left: 3px solid #667eea;
+  border-left: 3px solid #333;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .example-label {
   font-weight: 600;
-  color: #667eea;
+  color: #333;
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
 }
@@ -177,8 +183,8 @@
   margin-top: 1rem;
 }
 
-.cancel-btn,
-.submit-btn {
+.tcp-cancel-btn,
+.tcp-submit-btn {
   padding: 0.75rem 1.5rem;
   border: none;
   border-radius: 8px;
@@ -186,29 +192,33 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.cancel-btn {
+.tcp-cancel-btn {
   background: #f0f0f0;
   color: #666;
 }
 
-.cancel-btn:hover {
+.tcp-cancel-btn:hover {
   background: #e0e0e0;
 }
 
-.submit-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.tcp-submit-btn {
+  background: #333;
   color: white;
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
-.submit-btn:hover:not(:disabled) {
+.tcp-submit-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-.submit-btn:disabled {
+.tcp-submit-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -238,14 +248,15 @@
 
 .test-code-editor {
   margin: 1rem 0;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
-  border: 2px solid #e0e0e0;
+  border: 1px solid #d0d0d0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.test-code-btn {
+.tcp-test-code-btn {
   padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #333;
   color: white;
   border: none;
   border-radius: 8px;
@@ -256,12 +267,12 @@
   margin-top: 1rem;
 }
 
-.test-code-btn:hover:not(:disabled) {
+.tcp-test-code-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-.test-code-btn:disabled {
+.tcp-test-code-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -269,9 +280,10 @@
 .test-output {
   margin-top: 1.5rem;
   background: white;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
-  border: 2px solid #e0e0e0;
+  border: 1px solid #d0d0d0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .test-output-header {
@@ -311,8 +323,8 @@
     flex-direction: column;
   }
 
-  .cancel-btn,
-  .submit-btn {
+  .tcp-cancel-btn,
+  .tcp-submit-btn {
     width: 100%;
   }
 }

@@ -17,12 +17,12 @@
 }
 
 .mode-option:hover {
-  border-color: #667eea;
+  border-color: #333;
   background: #f8f9fa;
 }
 
 .mode-option.selected {
-  border-color: #667eea;
+  border-color: #333;
   background: #eff2ff;
 }
 
@@ -69,12 +69,12 @@
 
 .api-key-input input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #333;
 }
 
 .get-api-key-link {
   display: inline-block;
-  color: #667eea;
+  color: #333;
   text-decoration: none;
   font-size: 0.9rem;
   font-weight: 600;
@@ -82,7 +82,7 @@
 }
 
 .get-api-key-link:hover {
-  color: #764ba2;
+  color: #333;
   text-decoration: underline;
 }
 

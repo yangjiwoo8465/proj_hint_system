@@ -259,7 +259,7 @@ function TestCaseProposal() {
 
               <button
                 type="button"
-                className="test-code-btn"
+                className="tcp-test-code-btn"
                 onClick={handleTestCode}
                 disabled={testLoading}
               >
@@ -284,14 +284,14 @@ function TestCaseProposal() {
           <div className="form-actions">
             <button
               type="button"
-              className="cancel-btn"
+              className="tcp-cancel-btn"
               onClick={() => navigate('/app/problems')}
             >
               취소
             </button>
             <button
               type="submit"
-              className="submit-btn"
+              className="tcp-submit-btn"
               disabled={loading || !formData.problem_id}
             >
               {loading ? '제안 중...' : '테스트 케이스 제안하기'}

@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import Editor from '@monaco-editor/react'
+import '../../AdminPanelTestcases.css'
 import './SolutionsTab.css'
 
 function SolutionsTab({
@@ -17,26 +18,53 @@ function SolutionsTab({
   handleApproveSolution,
   handleRejectSolution
 }) {
+  const [activeFilter, setActiveFilter] = useState('pending')
+
+  const filteredProposals = solutionProposals.filter(p => p.status === activeFilter)
+
+  const getFilterLabel = (status) => {
+    switch(status) {
+      case 'pending': return '승인 대기'
+      case 'approved': return '승인됨'
+      case 'rejected': return '거부됨'
+      default: return status
+    }
+  }
+
   return (
     <div className="testcases-section">
       <div className="section-header">
-        <h2>솔루션 제안 승인</h2>
+        <h3>솔루션 제안 목록</h3>
         <div className="filter-tabs">
-          <button className="filter-btn active">전체</button>
-          <button className="filter-btn">대기중</button>
-          <button className="filter-btn">승인됨</button>
-          <button className="filter-btn">거부됨</button>
+          <button
+            className={`filter-btn ${activeFilter === 'pending' ? 'active' : ''}`}
+            onClick={() => setActiveFilter('pending')}
+          >
+            승인 대기 ({solutionProposals.filter(p => p.status === 'pending').length})
+          </button>
+          <button
+            className={`filter-btn ${activeFilter === 'approved' ? 'active' : ''}`}
+            onClick={() => setActiveFilter('approved')}
+          >
+            승인됨 ({solutionProposals.filter(p => p.status === 'approved').length})
+          </button>
+          <button
+            className={`filter-btn ${activeFilter === 'rejected' ? 'active' : ''}`}
+            onClick={() => setActiveFilter('rejected')}
+          >
+            거부됨 ({solutionProposals.filter(p => p.status === 'rejected').length})
+          </button>
         </div>
       </div>
 
       <div className="testcases-layout">
         <div className="proposals-list">
-          {solutionProposals.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#999', padding: '2rem' }}>
-              제안된 솔루션이 없습니다.
-            </p>
+          {filteredProposals.length === 0 ? (
+            <div className="empty-state">
+              <p>{getFilterLabel(activeFilter)} 중인 제안이 없습니다.</p>
+            </div>
           ) : (
-            solutionProposals.map((solution) => (
+            filteredProposals.map((solution) => (
               <div
                 key={solution.id}
                 className={`proposal-item ${selectedSolution?.id === solution.id ? 'selected' : ''}`}
@@ -119,7 +147,7 @@ function SolutionsTab({
                   />
                 </div>
                 <button
-                  className="test-btn"
+                  className="sol-test-btn"
                   onClick={handleTestSolution}
                   disabled={testLoading}
                 >
@@ -147,13 +175,13 @@ function SolutionsTab({
 
               <div className="detail-actions">
                 <button
-                  className="reject-btn"
+                  className="sol-reject-btn"
                   onClick={handleRejectSolution}
                 >
                   거부
                 </button>
                 <button
-                  className="approve-btn"
+                  className="sol-approve-btn"
                   onClick={handleApproveSolution}
                 >
                   승인

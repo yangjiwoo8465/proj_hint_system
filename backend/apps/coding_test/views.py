@@ -10,7 +10,9 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from django.conf import settings
 from .code_executor import CodeExecutor
-from .models import TestCaseProposal, SolutionProposal
+from .models import TestCaseProposal, SolutionProposal, Problem, HintMetrics
+from .code_analyzer import analyze_code
+from .badge_logic import check_and_award_badges
 from .serializers import (
     TestCaseProposalSerializer,
     TestCaseProposalCreateSerializer,
@@ -46,9 +48,9 @@ class ProblemDetailView(generics.RetrieveAPIView):
 
 def load_problems():
     """problems.json 파일 로드"""
-    problems_file = Path(__file__).parent / 'data' / 'problems_multi_solution_complete_fixed.json'
+    problems_file = Path(__file__).parent / 'data' / 'problems_final_cleaned.json'
     try:
-        with open(problems_file, 'r', encoding='utf-8') as f:
+        with open(problems_file, 'r', encoding='utf-8-sig') as f:
             return json.load(f)
     except Exception as e:
         return []
@@ -165,6 +167,46 @@ def execute_code(request):
                 'is_correct': is_correct
             })
 
+        # 코드 분석 및 지표 저장 (문제 ID가 있고 problem_obj를 가져올 수 있는 경우)
+        if problem_id:
+            try:
+                problem_obj = Problem.objects.filter(problem_id=problem_id).first()
+                if problem_obj:
+                    # 이전 힌트 요청 횟수 확인
+                    previous_hints = HintMetrics.objects.filter(
+                        user=request.user,
+                        problem=problem_obj
+                    ).order_by('-created_at')
+                    hint_count = previous_hints.count()
+
+                    # 코드 분석 (execution_results 전달)
+                    metrics = analyze_code(code, problem_id, execution_results=results)
+
+                    # HintMetrics 저장
+                    HintMetrics.objects.create(
+                        user=request.user,
+                        problem=problem_obj,
+                        code_similarity=metrics['code_similarity'],
+                        syntax_errors=metrics['syntax_errors'],
+                        logic_errors=metrics['logic_errors'],
+                        concept_level=metrics['concept_level'],
+                        hint_count=hint_count,
+                        hint_level_used=0  # 실행 버튼은 힌트 아님
+                    )
+
+                    print(f'[Execute Metrics Saved] User: {request.user.username}, Problem: {problem_id}, Similarity: {metrics["code_similarity"]}%')
+
+                    # 배지 획득 조건 체크
+                    try:
+                        newly_awarded = check_and_award_badges(request.user)
+                        if newly_awarded:
+                            print(f'[New Badges] User: {request.user.username} earned {len(newly_awarded)} new badge(s)')
+                    except Exception as badge_error:
+                        print(f'Failed to check badges: {str(badge_error)}')
+
+            except Exception as metric_error:
+                print(f'Failed to save execute metrics: {str(metric_error)}')
+
         return Response({
             'success': True,
             'message': f'{len(results)}개의 예제가 실행되었습니다.',
@@ -231,6 +273,74 @@ def submit_code(request):
         # 코드 실행 및 채점
         executor = CodeExecutor()
         result = executor.run_test_cases(code, test_cases)
+
+        # 코드 분석 및 지표 저장 (정적 6개 + LLM 6개)
+        try:
+            problem_obj = Problem.objects.filter(problem_id=problem_id).first()
+            if problem_obj:
+                # 정적 지표 6개 분석
+                from .code_analyzer import analyze_code, evaluate_code_with_llm
+                static_metrics = analyze_code(code, problem_id, execution_results=result['results'])
+
+                # LLM 지표 6개 평가
+                problem_description = problem.get('description', '')
+                llm_metrics = evaluate_code_with_llm(code, problem_description, static_metrics)
+
+                # HintMetrics 생성 또는 업데이트
+                hint_metrics, created = HintMetrics.objects.get_or_create(
+                    user=request.user,
+                    problem=problem_obj,
+                    defaults={
+                        # 정적 지표
+                        'syntax_errors': static_metrics['syntax_errors'],
+                        'test_pass_rate': static_metrics['test_pass_rate'],
+                        'code_complexity': static_metrics['code_complexity'],
+                        'code_quality_score': static_metrics['code_quality_score'],
+                        'algorithm_pattern_match': static_metrics['algorithm_pattern_match'],
+                        'pep8_violations': static_metrics['pep8_violations'],
+                        # LLM 지표
+                        'algorithm_efficiency': llm_metrics['algorithm_efficiency'],
+                        'code_readability': llm_metrics['code_readability'],
+                        'design_pattern_fit': llm_metrics['design_pattern_fit'],
+                        'edge_case_handling': llm_metrics['edge_case_handling'],
+                        'code_conciseness': llm_metrics['code_conciseness'],
+                        'function_separation': llm_metrics['function_separation'],
+                        # 메타
+                        'hint_count': 0,
+                        'hint_config': {'source': 'submit'}
+                    }
+                )
+
+                if not created:
+                    # 기존 메트릭 업데이트
+                    hint_metrics.syntax_errors = static_metrics['syntax_errors']
+                    hint_metrics.test_pass_rate = static_metrics['test_pass_rate']
+                    hint_metrics.code_complexity = static_metrics['code_complexity']
+                    hint_metrics.code_quality_score = static_metrics['code_quality_score']
+                    hint_metrics.algorithm_pattern_match = static_metrics['algorithm_pattern_match']
+                    hint_metrics.pep8_violations = static_metrics['pep8_violations']
+                    hint_metrics.algorithm_efficiency = llm_metrics['algorithm_efficiency']
+                    hint_metrics.code_readability = llm_metrics['code_readability']
+                    hint_metrics.design_pattern_fit = llm_metrics['design_pattern_fit']
+                    hint_metrics.edge_case_handling = llm_metrics['edge_case_handling']
+                    hint_metrics.code_conciseness = llm_metrics['code_conciseness']
+                    hint_metrics.function_separation = llm_metrics['function_separation']
+                    hint_metrics.save()
+
+                print(f'[Submit Metrics Saved] User: {request.user.username}, Problem: {problem_id}, Passed: {result["success"]}')
+                print(f'  정적: syntax_errors={static_metrics["syntax_errors"]}, test_pass={static_metrics["test_pass_rate"]}%')
+                print(f'  LLM: efficiency={llm_metrics["algorithm_efficiency"]}, readability={llm_metrics["code_readability"]}')
+
+                # 배지 획득 조건 체크
+                try:
+                    newly_awarded = check_and_award_badges(request.user)
+                    if newly_awarded:
+                        print(f'[New Badges] User: {request.user.username} earned {len(newly_awarded)} new badge(s)')
+                except Exception as badge_error:
+                    print(f'Failed to check badges: {str(badge_error)}')
+
+        except Exception as metric_error:
+            print(f'Failed to save submit metrics: {str(metric_error)}')
 
         return Response({
             'success': True,
