@@ -32,7 +32,7 @@ class Problem(models.Model):
 
 
 class Submission(models.Model):
-    """제출 기록 모델"""
+    """제출 기록 모델 (확장: 12개 지표 포함)"""
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='submissions')
     problem = models.ForeignKey(Problem, on_delete=models.CASCADE, related_name='submissions')
     code = models.TextField('제출 코드')
@@ -44,13 +44,36 @@ class Submission(models.Model):
             ('success', '성공'),
             ('fail', '실패'),
             ('error', '에러'),
-        ]
+        ],
+        default='pending'
     )
     output = models.TextField('출력', blank=True)
     error_message = models.TextField('에러 메시지', blank=True)
     execution_count = models.IntegerField('실행 횟수', default=1)
     time_spent = models.IntegerField('소요 시간(초)', default=0)
     rating_earned = models.IntegerField('획득 점수', default=0)
+
+    # 테스트 결과
+    is_correct = models.BooleanField('정답 여부', default=False)
+    passed_tests = models.IntegerField('통과한 테스트 수', default=0)
+    total_tests = models.IntegerField('전체 테스트 수', default=0)
+
+    # 정적 지표 (6개)
+    syntax_errors = models.IntegerField('문법 오류 개수', default=0)
+    test_pass_rate = models.FloatField('테스트 통과율', default=0.0)
+    execution_time = models.FloatField('실행 시간(ms)', default=0.0)
+    memory_usage = models.FloatField('메모리 사용량(KB)', default=0.0)
+    code_quality_score = models.FloatField('코드 품질 점수', default=0.0)
+    pep8_violations = models.IntegerField('PEP8 위반 개수', default=0)
+
+    # LLM 지표 (6개, 각 1-5점)
+    algorithm_efficiency = models.IntegerField('알고리즘 효율성', default=3)
+    code_readability = models.IntegerField('코드 가독성', default=3)
+    edge_case_handling = models.IntegerField('엣지 케이스 처리', default=3)
+    code_conciseness = models.IntegerField('코드 간결성', default=3)
+    test_coverage_estimate = models.IntegerField('테스트 커버리지 추정', default=3)
+    security_awareness = models.IntegerField('보안 인식', default=3)
+
     created_at = models.DateTimeField('제출일', auto_now_add=True)
 
     class Meta:
@@ -664,6 +687,56 @@ class UserGoal(models.Model):
         if self.goal.target_value == 0:
             return 0
         return min(100, (self.current_value / self.goal.target_value) * 100)
+
+
+class ProblemStatus(models.Model):
+    """
+    사용자별 문제 상태 추적
+
+    분류:
+    - solved: 내가 푼 문제 (모든 테스트 통과 + 지표 최적)
+    - upgrade: 업그레이드 (정답이지만 지표 개선 가능)
+    - upgrading: 업그레이드(푸는 중) (업그레이드 문제를 다시 풀고 있음)
+    """
+    STATUS_CHOICES = [
+        ('solved', '내가 푼 문제'),
+        ('upgrade', '업그레이드'),
+        ('upgrading', '업그레이드(푸는 중)')
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='problem_statuses'
+    )
+    problem = models.ForeignKey(
+        Problem,
+        on_delete=models.CASCADE,
+        related_name='user_statuses'
+    )
+    status = models.CharField('상태', max_length=20, choices=STATUS_CHOICES, default='upgrade')
+
+    # 최고 점수 기록 (종합 점수)
+    best_score = models.FloatField('최고 점수', default=0.0)
+
+    # 최초 정답 제출 시간
+    first_solved_at = models.DateTimeField('최초 정답일', null=True, blank=True)
+
+    # 최근 제출 시간
+    last_submitted_at = models.DateTimeField('최근 제출일', auto_now=True)
+
+    created_at = models.DateTimeField('생성일', auto_now_add=True)
+    updated_at = models.DateTimeField('수정일', auto_now=True)
+
+    class Meta:
+        db_table = 'problem_status'
+        verbose_name = '문제 상태'
+        verbose_name_plural = '문제 상태 목록'
+        unique_together = ['user', 'problem']
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.problem.title} ({self.get_status_display()})"
 
 
 class Roadmap(models.Model):

@@ -10,8 +10,9 @@ function Problems() {
   const [problems, setProblems] = useState([])
   const [loading, setLoading] = useState(true)
   const [submissions, setSubmissions] = useState([])
+  const [problemStatuses, setProblemStatuses] = useState([]) // ProblemStatus from backend
   const [filters, setFilters] = useState({
-    statusFilter: 'all', // 'all', 'solved', 'unsolved', 'in_progress'
+    statusFilter: 'all', // 'all', 'solved', 'unsolved', 'in_progress', 'upgrade'
     categories: [],
     levels: [],
     tags: [],
@@ -31,8 +32,9 @@ function Problems() {
         setLoading(false)
       })
 
-    // 사용자의 제출 기록 로드
+    // 사용자의 제출 기록 및 ProblemStatus 로드
     fetchSubmissions()
+    fetchProblemStatuses()
   }, [])
 
   const fetchSubmissions = async () => {
@@ -46,17 +48,35 @@ function Problems() {
     }
   }
 
+  const fetchProblemStatuses = async () => {
+    try {
+      const response = await api.get('/coding-test/problem-statuses/')
+      if (response.data.success) {
+        setProblemStatuses(response.data.data || [])
+      }
+    } catch (error) {
+      console.error('Failed to fetch problem statuses:', error)
+    }
+  }
+
   const getProblemStatus = (problemId) => {
+    // 1. 우선 ProblemStatus 확인 (백엔드 상태 - solved/upgrade/upgrading)
+    const problemStatus = problemStatuses.find(ps => ps.problem_id === problemId)
+    if (problemStatus) {
+      return problemStatus.status // 'solved', 'upgrade', 'upgrading'
+    }
+
+    // 2. ProblemStatus가 없으면 로컬 제출 기록으로 판단
     const problemSubmissions = submissions.filter(s => s.problem_id === problemId)
 
-    // 성공한 제출이 있으면 solved
+    // 성공한 제출이 있으면 in_progress (아직 ProblemStatus 생성 전)
     const hasSuccess = problemSubmissions.some(s => s.result === 'success')
-    if (hasSuccess) return 'solved'
+    if (hasSuccess) return 'in_progress'
 
     // 제출 기록이 있으면 in_progress
     if (problemSubmissions.length > 0) return 'in_progress'
 
-    // localStorage에 저장된 코드가 있는지 확인
+    // 3. localStorage에 저장된 코드가 있는지 확인
     if (user) {
       const storageKey = `user_${user.id}_problem_${problemId}_code`
       const savedCode = localStorage.getItem(storageKey)
@@ -65,6 +85,7 @@ function Problems() {
       }
     }
 
+    // 4. 아무것도 없으면 unsolved
     return 'unsolved'
   }
 
@@ -113,11 +134,13 @@ function Problems() {
   }
 
   const filteredProblems = problems.filter(problem => {
-    // 상태 필터 (전체/푼 문제/안 푼 문제/푸는 중)
+    // 상태 필터 (전체/푼 문제/안 푼 문제/푸는 중/업그레이드)
     const status = getProblemStatus(problem.problem_id)
     if (filters.statusFilter === 'solved' && status !== 'solved') return false
     if (filters.statusFilter === 'unsolved' && status !== 'unsolved') return false
     if (filters.statusFilter === 'in_progress' && status !== 'in_progress') return false
+    // 업그레이드 필터: 'upgrade' 또는 'upgrading' 상태 포함
+    if (filters.statusFilter === 'upgrade' && status !== 'upgrade' && status !== 'upgrading') return false
 
     const matchesCategory = filters.categories.length === 0 || filters.categories.includes(problem.step_title)
     const matchesLevel = filters.levels.length === 0 || filters.levels.includes(problem.level)
@@ -181,6 +204,15 @@ function Problems() {
                 onChange={() => setFilters(prev => ({ ...prev, statusFilter: 'solved' }))}
               />
               내가 푼 문제
+            </label>
+            <label className="filter-checkbox">
+              <input
+                type="radio"
+                name="statusFilter"
+                checked={filters.statusFilter === 'upgrade'}
+                onChange={() => setFilters(prev => ({ ...prev, statusFilter: 'upgrade' }))}
+              />
+              업그레이드
             </label>
             <label className="filter-checkbox">
               <input

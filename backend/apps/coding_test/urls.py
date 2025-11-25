@@ -20,6 +20,12 @@ from .roadmap_api import (
     get_user_badges,
     get_user_goals
 )
+from .metrics_validation_api import validate_metrics
+from .submission_api import submit_code as submit_code_new
+from .problem_data_validation_api import (
+    list_problems_for_validation,
+    validate_problem_data
+)
 
 app_name = 'coding_test'
 
@@ -30,7 +36,7 @@ urlpatterns = [
 
     # 코드 실행
     path('execute/', views.execute_code, name='execute_code'),
-    path('submit/', views.submit_code, name='submit_code'),
+    path('submit/', submit_code_new, name='submit_code'),  # 새로운 제출 API (숨겨진 테스트 케이스 사용)
 
     # 힌트
     path('hints/', request_hint, name='request_hint'),
@@ -38,6 +44,9 @@ urlpatterns = [
     # 제출 기록
     path('submissions/', views.SubmissionListView.as_view(), name='submission_list'),
     path('submissions/<int:pk>/', views.SubmissionDetailView.as_view(), name='submission_detail'),
+
+    # 문제 상태
+    path('problem-statuses/', views.get_problem_statuses, name='get_problem_statuses'),
 
     # 북마크
     path('bookmarks/', views.BookmarkListView.as_view(), name='bookmark_list'),
@@ -73,4 +82,11 @@ urlpatterns = [
     path('badges/', get_badges, name='get_badges'),
     path('user-badges/', get_user_badges, name='get_user_badges'),
     path('user-goals/', get_user_goals, name='get_user_goals'),
+
+    # 관리자 - 메트릭 검증
+    path('admin/validate-metrics/', validate_metrics, name='validate_metrics'),
+
+    # 관리자 - 문제 데이터 검증
+    path('admin/problem-data/list/', list_problems_for_validation, name='list_problems_validation'),
+    path('admin/problem-data/validate/', validate_problem_data, name='validate_problem_data'),
 ]

@@ -8,6 +8,8 @@ import UsersTab from './tabs/UsersTab'
 import ProblemsTab from './tabs/ProblemsTab'
 import TestCasesTab from './tabs/TestCasesTab'
 import SolutionsTab from './tabs/SolutionsTab'
+import MetricsValidationTab from './tabs/MetricsValidationTab'
+import ProblemDataValidationTab from './tabs/ProblemDataValidationTab'
 
 function AdminPanel() {
   const [activeTab, setActiveTab] = useState('models')
@@ -687,6 +689,18 @@ function AdminPanel() {
                 </span>
               )}
             </button>
+            <button
+              className={activeTab === 'metrics' ? 'active' : ''}
+              onClick={() => setActiveTab('metrics')}
+            >
+              📊 메트릭 검증
+            </button>
+            <button
+              className={activeTab === 'problem-data' ? 'active' : ''}
+              onClick={() => setActiveTab('problem-data')}
+            >
+              📝 문제 데이터 검증
+            </button>
           </div>
 
           <div className="admin-content">
@@ -768,6 +782,14 @@ function AdminPanel() {
             handleApproveSolution={handleApproveSolution}
             handleRejectSolution={handleRejectSolution}
           />
+        )}
+
+        {activeTab === 'metrics' && (
+          <MetricsValidationTab />
+        )}
+
+        {activeTab === 'problem-data' && (
+          <ProblemDataValidationTab />
         )}
           </div>
         </div>

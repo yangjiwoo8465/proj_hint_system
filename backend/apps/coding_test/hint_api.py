@@ -22,13 +22,54 @@ def load_problem_json():
         return json.load(f)
 
 
+def format_code_indentation(code_text):
+    """
+    LLM 응답에서 코드 블록의 들여쓰기를 정리합니다.
+    JSON 문자열로 전달되면서 들여쓰기가 사라지는 문제를 보정합니다.
+
+    Args:
+        code_text: LLM이 생성한 코드 문자열
+
+    Returns:
+        str: 적절한 들여쓰기가 적용된 코드
+    """
+    if not code_text:
+        return code_text
+
+    lines = code_text.strip().split('\n')
+    formatted_lines = []
+    indent_level = 0
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            formatted_lines.append('')
+            continue
+
+        # 들여쓰기 감소: elif, else, except, finally 등
+        if stripped.startswith(('elif ', 'else:', 'except', 'except:', 'finally:')):
+            indent_level = max(0, indent_level - 1)
+
+        # 현재 줄 추가 (들여쓰기 적용)
+        formatted_lines.append('    ' * indent_level + stripped)
+
+        # 다음 줄 들여쓰기 증가: def, class, if, for, while, try 등으로 끝나는 경우
+        if stripped.endswith(':'):
+            indent_level += 1
+        # 들여쓰기 감소: return, break, continue, pass, raise로 블록이 끝나는 경우도 고려
+        # (단, 함수 내에서 return이 나와도 함수는 계속되므로 조심해야 함)
+
+    return '\n'.join(formatted_lines)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def request_hint(request):
-    """힌트 요청 API - 커스텀 구성 지원 (정적 6개 + LLM 6개 지표) + Chain of Hints"""
+    """힌트 요청 API - 두 가지 목적별 힌트 제공 (완료/최적화)"""
     problem_id = request.data.get('problem_id')
     user_code = request.data.get('user_code', '')
     previous_hints = request.data.get('previous_hints', [])  # Chain of Hints
+    manual_purpose = request.data.get('hint_purpose')  # 관리자 화면용 수동 목적 설정
 
     # AI 설정 가져오기
     try:
@@ -57,10 +98,39 @@ def request_hint(request):
     problem_title = problem.get('title', '')
     problem_description = problem.get('description', '')
 
+    # 2단계: ProblemStatus 조회 및 3단계: hint_purpose 결정
+    hint_purpose = manual_purpose  # 수동 설정이 있으면 우선 사용
+    if not hint_purpose:
+        try:
+            from .models import Problem, ProblemStatus
+            problem_obj = Problem.objects.filter(problem_id=problem_id).first()
+            if problem_obj:
+                problem_status = ProblemStatus.objects.filter(
+                    user=request.user,
+                    problem=problem_obj
+                ).first()
+
+                if not problem_status:
+                    # 첫 풀이
+                    hint_purpose = 'completion'
+                elif problem_status.status in ['upgrade', 'upgrading']:
+                    # 업그레이드/업그레이드(푸는 중)
+                    hint_purpose = 'optimization'
+                elif problem_status.status == 'solved':
+                    # 이미 최적 달성 (추가 개선 연습)
+                    hint_purpose = 'optimization'
+                else:
+                    # 기본값
+                    hint_purpose = 'completion'
+            else:
+                hint_purpose = 'completion'
+        except Exception as e:
+            print(f'Failed to determine hint_purpose: {str(e)}')
+            hint_purpose = 'completion'
+
     # 힌트 구성 가져오기 (커스텀 또는 프리셋)
-    hint_config = request.data.get('hint_config', {})
-    preset = hint_config.get('preset')  # '초급', '중급', '고급', None
-    components = hint_config.get('components', {})
+    preset = request.data.get('preset')  # '초급', '중급', '고급', None
+    components = request.data.get('custom_components', {})
 
     # 프리셋이 지정된 경우 기본 구성 설정
     if preset == '초급':
@@ -82,35 +152,218 @@ def request_hint(request):
             'edge_cases': False, 'improvements': False
         }
 
-    # 코드 분석 (정적 지표 계산)
+    # 4단계: 정적 분석 (12개 메트릭: 정적 6개 + LLM 6개)
     try:
         static_metrics = analyze_code(user_code, problem_id, execution_results=None)
     except Exception as e:
         print(f'Failed to analyze code: {str(e)}')
         static_metrics = {
             'syntax_errors': 0, 'test_pass_rate': 0.0,
-            'code_complexity': 0, 'code_quality_score': 0.0,
-            'algorithm_pattern_match': 0.0, 'pep8_violations': 0
+            'execution_time': 0.0, 'memory_usage': 0.0,
+            'code_quality_score': 0.0, 'pep8_violations': 0
         }
 
-    # 커스텀 구성 기반 프롬프트 생성
-    prompt_components = []
-    if components.get('summary'):
-        prompt_components.append("요약된 설명 한 줄 (핵심만)")
-    if components.get('libraries'):
-        prompt_components.append("사용되는 라이브러리/함수 목록")
-    if components.get('code_example'):
-        prompt_components.append("코드 예시 (1-3줄)")
-    if components.get('step_by_step'):
-        prompt_components.append("단계별 해결 방법")
-    if components.get('complexity_hint'):
-        prompt_components.append("시간/공간 복잡도 힌트")
-    if components.get('edge_cases'):
-        prompt_components.append("엣지 케이스 체크리스트")
-    if components.get('improvements'):
-        prompt_components.append("개선 사항 제안")
+    try:
+        from .code_analyzer import evaluate_code_with_llm
+        llm_metrics = evaluate_code_with_llm(user_code, problem_description, static_metrics)
+    except Exception as e:
+        print(f'Failed to evaluate with LLM: {str(e)}')
+        llm_metrics = {
+            'algorithm_efficiency': 3,
+            'code_readability': 3,
+            'edge_case_handling': 3,
+            'code_conciseness': 3,
+            'test_coverage_estimate': 3,
+            'security_awareness': 3
+        }
 
-    components_str = "\n".join(f"- {comp}" for comp in prompt_components)
+    # 5단계: hint_purpose별 분기
+    weak_metrics = []
+    purpose_context = ""
+
+    if hint_purpose == 'completion':
+        # 5-1. completion: 코드를 '동작'하게 만들기
+        if static_metrics['syntax_errors'] > 0:
+            purpose_context = """
+[힌트 목적: 코드 완료]
+현재 코드에 문법 오류가 있습니다. 문법 오류를 수정하는 힌트를 제공하세요.
+- 어떤 문법 오류인지 설명
+- 어떻게 수정해야 하는지 구체적 방법 제시
+"""
+        else:
+            purpose_context = """
+[힌트 목적: 코드 완료]
+문법 오류는 없습니다. 다음 단계 로직을 구현하도록 돕는 힌트를 제공하세요.
+- 입력을 어떻게 처리해야 하는지
+- 어떤 자료구조를 사용해야 하는지
+- 출력 형식은 어떻게 맞춰야 하는지
+"""
+    elif hint_purpose == 'optimization':
+        # 5-2. optimization: 코드를 '효율적'으로 만들기
+        # 12개 메트릭 중 약점 파악
+        metric_scores = []
+
+        # 정적 지표 정규화 (0-100 → 0-5 스케일)
+        if static_metrics['syntax_errors'] > 0:
+            metric_scores.append(('syntax_errors', 1, f"문법 오류 {static_metrics['syntax_errors']}개"))
+
+        test_pass_score = (static_metrics['test_pass_rate'] / 100) * 5
+        if test_pass_score < 4:
+            metric_scores.append(('test_pass_rate', test_pass_score, f"테스트 통과율 {static_metrics['test_pass_rate']}%"))
+
+        if static_metrics.get('execution_time', 0) > 100:
+            exec_score = max(1, 5 - (static_metrics['execution_time'] / 200))
+            metric_scores.append(('execution_time', exec_score, f"실행 시간 {static_metrics['execution_time']}ms"))
+
+        if static_metrics.get('memory_usage', 0) > 1000:
+            mem_score = max(1, 5 - (static_metrics['memory_usage'] / 2000))
+            metric_scores.append(('memory_usage', mem_score, f"메모리 사용량 {static_metrics['memory_usage']}KB"))
+
+        quality_score = (static_metrics['code_quality_score'] / 100) * 5
+        if quality_score < 3.5:
+            metric_scores.append(('code_quality', quality_score, f"코드 품질 {static_metrics['code_quality_score']}/100"))
+
+        if static_metrics['pep8_violations'] > 3:
+            pep8_score = max(1, 5 - (static_metrics['pep8_violations'] / 2))
+            metric_scores.append(('pep8', pep8_score, f"PEP8 위반 {static_metrics['pep8_violations']}개"))
+
+        # LLM 지표 (이미 1-5 스케일)
+        for key, value in llm_metrics.items():
+            if value < 3.5:
+                metric_scores.append((key, value, f"{key}: {value}/5"))
+
+        # 가장 약한 1-2개 메트릭 선택
+        metric_scores.sort(key=lambda x: x[1])
+        weak_metrics = metric_scores[:2]
+
+        if weak_metrics:
+            weak_desc = "\n".join([f"- {desc}" for _, _, desc in weak_metrics])
+            purpose_context = f"""
+[힌트 목적: 코드 최적화]
+현재 코드의 약점:
+{weak_desc}
+
+위 약점을 개선하는 힌트를 제공하세요:
+- 구체적인 개선 방법
+- 최적화 기법
+- 리팩토링 제안
+"""
+        else:
+            purpose_context = """
+[힌트 목적: 코드 최적화]
+현재 코드는 이미 우수합니다. 추가 개선 가능성을 탐색하는 힌트를 제공하세요.
+"""
+
+    # 3단계: 이전 지표 평균 계산 (Chain of Hints)
+    try:
+        problem_obj = Problem.objects.filter(problem_id=problem_id).first()
+        if problem_obj:
+            previous_metrics = HintMetrics.objects.filter(
+                user=request.user,
+                problem=problem_obj
+            ).order_by('-created_at')[:5]  # 최근 5개 지표
+
+            if previous_metrics.exists():
+                # 정적 지표 평균
+                avg_static = {
+                    'syntax_errors': sum(m.syntax_errors for m in previous_metrics) / len(previous_metrics),
+                    'test_pass_rate': sum(m.test_pass_rate for m in previous_metrics) / len(previous_metrics),
+                    'code_complexity': sum(m.code_complexity for m in previous_metrics) / len(previous_metrics),
+                    'code_quality_score': sum(m.code_quality_score for m in previous_metrics) / len(previous_metrics),
+                    'algorithm_pattern_match': sum(m.algorithm_pattern_match for m in previous_metrics) / len(previous_metrics),
+                    'pep8_violations': sum(m.pep8_violations for m in previous_metrics) / len(previous_metrics),
+                }
+                # LLM 지표 평균
+                avg_llm = {
+                    'algorithm_efficiency': sum(m.algorithm_efficiency for m in previous_metrics) / len(previous_metrics),
+                    'code_readability': sum(m.code_readability for m in previous_metrics) / len(previous_metrics),
+                    'design_pattern_fit': sum(m.design_pattern_fit for m in previous_metrics) / len(previous_metrics),
+                    'edge_case_handling': sum(m.edge_case_handling for m in previous_metrics) / len(previous_metrics),
+                    'code_conciseness': sum(m.code_conciseness for m in previous_metrics) / len(previous_metrics),
+                    'function_separation': sum(m.function_separation for m in previous_metrics) / len(previous_metrics),
+                }
+            else:
+                avg_static = None
+                avg_llm = None
+        else:
+            avg_static = None
+            avg_llm = None
+    except Exception as e:
+        print(f'Failed to calculate average metrics: {str(e)}')
+        avg_static = None
+        avg_llm = None
+
+    # 레벨별 요약 스타일 정의
+    summary_style = ""
+    if preset == '초급':
+        summary_style = """
+💡 요약 (summary): 1-2줄로 핵심 개념을 초보자 친화적으로 설명
+  ⚠️ 반드시 지켜야 할 규칙:
+  - 필요한 함수명이나 라이브러리명을 직접적으로 언급하세요 (예: "collections.Counter를 사용하여 각 문자의 빈도를 세고...")
+  - 구체적인 작업이 무엇인지 단계별로 명확히 설명하세요
+  - "어떻게"를 중심으로 구체적인 방법을 제시하세요
+  - 추상적인 개념이나 질문은 절대 사용하지 마세요"""
+    elif preset == '중급':
+        summary_style = """
+💡 요약 (summary): 1-2줄로 핵심 개념을 중급자에게 설명
+  ⚠️ 반드시 지켜야 할 규칙:
+  - 함수명이나 라이브러리명을 직접 언급하지 말고, 자료구조나 알고리즘 개념으로만 설명하세요 (예: "해시 테이블을 활용하여 빈도를 추적하고...")
+  - "무엇을" 사용해야 하는지에 집중하세요
+  - 구체적인 함수명 대신 개념적 접근법을 제시하세요
+  - 질문 형식은 사용하지 마세요"""
+    elif preset == '고급':
+        summary_style = """
+💡 요약 (summary): 소크라테스식 질문으로 사고를 유도
+  ⚠️ 반드시 지켜야 할 규칙:
+  - 반드시 질문 형식으로만 작성하세요 (반드시 '?'로 끝나야 합니다)
+  - 직접적인 답이나 해결책을 절대 제시하지 마세요
+  - 구체적인 함수명이나 라이브러리명을 절대 언급하지 마세요
+  - 학습자가 스스로 사고하도록 핵심 질문으로만 유도하세요 (예: "이 문제에서 중복 계산을 피하려면 어떤 자료구조가 필요할까요?")
+  - 2개 이상의 연계된 질문을 사용하여 사고의 흐름을 유도하세요"""
+    else:
+        summary_style = "💡 요약 (summary): 1-2줄로 핵심 개념 설명"
+
+    # 커스텀 구성 기반 프롬프트 생성
+    prompt_components = [summary_style]  # 요약은 항상 포함
+
+    if components.get('libraries'):
+        prompt_components.append("""📚 사용 라이브러리 (libraries): 필요한 Python 라이브러리/함수 목록
+  ⚠️ 중요: 코드 예시(code_example)에서 실제로 사용하는 라이브러리만 추천하세요
+  - 코드 예시가 없거나 표준 내장 함수만 사용한다면, 이 항목은 null로 반환하세요""")
+    if components.get('code_example'):
+        if preset == '고급':
+            prompt_components.append("""📝 코드 예시 (code_example): 학생이 작성한 코드에 이어서 사용할 수 있는 핵심 로직
+  ⚠️ 중요 규칙:
+  - 학생이 이미 작성한 코드는 절대 중복해서 제시하지 마세요
+  - 학생 코드가 틀렸다면: 틀린 부분만 수정하는 방법 제시
+  - 학생 코드가 맞다면: 다음 단계 로직만 제시 (예: 입력 처리 후 → 계산 로직)
+  - "..."이나 생략 기호를 절대 사용하지 마세요
+  - 완전하고 실행 가능한 코드를 작성하세요
+  - 함수 분리와 알고리즘적 사고를 유도하는 구조로 작성하세요
+  - 코드 블록은 반드시 올바른 Python 들여쓰기(4칸 스페이스)를 포함해야 합니다
+
+  예시:
+  - 학생 코드: "a, b = input().split()" (맞음)
+    → 다음 단계: "# 입력을 정수로 변환\na, b = int(a), int(b)\n# 계산 로직\nresult = a + b\nprint(result)"
+  - 학생 코드: "a, b = input().split()" (틀림 - 정수 변환 누락)
+    → 수정: "a, b = map(int, input().split())  # int로 변환 필요" """)
+        else:
+            prompt_components.append("""📝 코드 예시 (code_example): 간단한 코드 예제 (5-10줄, 핵심 로직 포함)
+  ⚠️ 중요 규칙:
+  - 학생이 이미 작성한 코드는 절대 중복해서 제시하지 마세요
+  - 학생 코드가 틀렸다면: 틀린 부분만 수정
+  - 학생 코드가 맞다면: 다음 단계 로직만 제시
+  - 코드 블록은 반드시 올바른 Python 들여쓰기(4칸 스페이스)를 포함해야 합니다""")
+    if components.get('step_by_step'):
+        prompt_components.append("📋 단계별 해결 방법 (step_by_step): 문제 해결 단계를 순서대로 나열")
+    if components.get('complexity_hint'):
+        prompt_components.append("⏱️ 시간/공간 복잡도 힌트 (complexity_hint): 목표 복잡도와 최적화 방법")
+    if components.get('edge_cases'):
+        prompt_components.append("⚠️ 엣지 케이스 (edge_cases): 고려해야 할 특수 케이스 목록")
+    if components.get('improvements'):
+        prompt_components.append("✨ 개선 사항 (improvements): 현재 코드의 개선점 제안")
+
+    components_str = "\n".join(prompt_components)
 
     # 이전 힌트 컨텍스트 생성 (Chain of Hints)
     previous_hints_str = ""
@@ -129,7 +382,33 @@ def request_hint(request):
 ⚠️ 중요: 위 힌트들에서 언급한 내용은 반복하지 말고, 다음 단계나 새로운 관점의 힌트를 제공하세요.
 """
 
-    # 통합 프롬프트 생성
+    # 지표 평균 컨텍스트 생성 (Chain of Hints)
+    metrics_history_str = ""
+    if avg_static and avg_llm:
+        metrics_history_str = f"""
+# 이전 지표 평균 (최근 5회)
+학생의 이전 코드 평가 결과입니다. 현재 코드와 비교하여 개선/악화 여부를 파악하세요:
+
+## 정적 지표 평균
+- 문법 오류: {avg_static['syntax_errors']:.1f}개 (현재: {static_metrics['syntax_errors']}개)
+- 테스트 통과율: {avg_static['test_pass_rate']:.1f}% (현재: {static_metrics['test_pass_rate']}%)
+- 실행 시간: {avg_static.get('execution_time', 0):.1f}ms (현재: {static_metrics.get('execution_time', 0)}ms)
+- 메모리 사용량: {avg_static.get('memory_usage', 0):.1f}KB (현재: {static_metrics.get('memory_usage', 0)}KB)
+- 코드 품질: {avg_static['code_quality_score']:.1f}/100 (현재: {static_metrics['code_quality_score']})
+- PEP8 위반: {avg_static['pep8_violations']:.1f}개 (현재: {static_metrics['pep8_violations']}개)
+
+## LLM 지표 평균
+- 알고리즘 효율성: {avg_llm['algorithm_efficiency']:.1f}/5 (현재: {llm_metrics['algorithm_efficiency']}/5)
+- 코드 가독성: {avg_llm['code_readability']:.1f}/5 (현재: {llm_metrics['code_readability']}/5)
+- 엣지 케이스 처리: {avg_llm['edge_case_handling']:.1f}/5 (현재: {llm_metrics['edge_case_handling']}/5)
+- 코드 간결성: {avg_llm['code_conciseness']:.1f}/5 (현재: {llm_metrics['code_conciseness']}/5)
+- 테스트 커버리지 추정: {avg_llm.get('test_coverage_estimate', 3):.1f}/5 (현재: {llm_metrics.get('test_coverage_estimate', 3)}/5)
+- 보안 인식: {avg_llm.get('security_awareness', 3):.1f}/5 (현재: {llm_metrics.get('security_awareness', 3)}/5)
+
+💡 개선된 지표는 칭찬하고, 악화된 지표는 구체적인 개선 방향을 제시하세요.
+"""
+
+    # 통합 프롬프트 생성 (6단계: LLM 힌트 생성)
     prompt = f"""당신은 Python 코딩 교육 전문가입니다.
 
 # 문제 정보
@@ -138,26 +417,35 @@ def request_hint(request):
 # 학생 코드
 {user_code if user_code else '(아직 작성하지 않음)'}
 
-# 코드 분석 결과 (정적 지표)
+{purpose_context}
+
+# 현재 코드 분석 결과 (12개 지표)
+
+## 정적 지표 (6개)
 - 문법 오류: {static_metrics['syntax_errors']}개
 - 테스트 통과율: {static_metrics['test_pass_rate']}%
-- 코드 복잡도: {static_metrics['code_complexity']} (10 이하 권장)
+- 실행 시간: {static_metrics.get('execution_time', 0)}ms
+- 메모리 사용량: {static_metrics.get('memory_usage', 0)}KB
 - 코드 품질 점수: {static_metrics['code_quality_score']}/100
-- 알고리즘 패턴 일치도: {static_metrics['algorithm_pattern_match']}%
 - PEP8 위반: {static_metrics['pep8_violations']}개
-{previous_hints_str}
+
+## LLM 평가 지표 (6개, 각 1-5점)
+- 알고리즘 효율성: {llm_metrics['algorithm_efficiency']}/5
+- 코드 가독성: {llm_metrics['code_readability']}/5
+- 엣지 케이스 처리: {llm_metrics['edge_case_handling']}/5
+- 코드 간결성: {llm_metrics['code_conciseness']}/5
+- 테스트 커버리지 추정: {llm_metrics.get('test_coverage_estimate', 3)}/5
+- 보안 인식: {llm_metrics.get('security_awareness', 3)}/5
+{metrics_history_str}{previous_hints_str}
 # 요청 사항
-다음 항목만 포함하여 힌트를 제공하세요:
+위 힌트 목적과 12개 지표를 모두 반영하여 다음 항목만 포함한 힌트를 제공하세요:
 {components_str}
 
-아래 6가지 기준으로 코드를 평가하고 (각 1-5점), 위에서 요청한 항목만 포함한 힌트를 작성하세요:
-
-1. algorithm_efficiency (알고리즘 효율성): 시간/공간 복잡도
-2. code_readability (코드 가독성): 변수명, 주석 품질
-3. design_pattern_fit (설계 패턴 적합성): 알고리즘 패턴, 자료구조 적합성
-4. edge_case_handling (엣지 케이스 처리): 경계 조건, 예외 처리
-5. code_conciseness (코드 간결성): 중복 제거, DRY 원칙
-6. function_separation (함수 분리도): 모듈화, 단일 책임 원칙
+⚠️ 중요:
+- **힌트 목적에 따라 초점을 맞추세요** (완료: 동작하게 만들기 / 최적화: 효율적으로 만들기)
+- 12개 지표를 모두 고려하여 종합적인 피드백을 제공하세요
+- 이전 지표 평균이 있다면 개선/악화 여부를 명확히 언급하세요
+- 가장 시급한 개선 사항을 우선적으로 다루세요
 
 # 응답 형식 (JSON)
 {{
@@ -169,14 +457,6 @@ def request_hint(request):
     "complexity_hint": "..." or null,
     "edge_cases": [...] or null,
     "improvements": [...] or null
-  }},
-  "llm_metrics": {{
-    "algorithm_efficiency": 1-5,
-    "code_readability": 1-5,
-    "design_pattern_fit": 1-5,
-    "edge_case_handling": 1-5,
-    "code_conciseness": 1-5,
-    "function_separation": 1-5
   }}
 }}
 
@@ -185,14 +465,6 @@ def request_hint(request):
 
     # AI 설정에 따라 힌트 생성 방식 결정
     hint_response = ""
-    llm_metrics = {
-        'algorithm_efficiency': 0,
-        'code_readability': 0,
-        'design_pattern_fit': 0,
-        'edge_case_handling': 0,
-        'code_conciseness': 0,
-        'function_separation': 0
-    }
 
     if ai_config.mode == 'api':
         # API 방식: Hugging Face Inference API 사용
@@ -220,10 +492,10 @@ def request_hint(request):
                 payload = {
                     'model': ai_config.model_name,
                     'messages': [
-                        {'role': 'system', 'content': '당신은 코딩 교육 전문가입니다. JSON 형식으로 힌트와 평가 지표를 반환해야 합니다.'},
+                        {'role': 'system', 'content': '당신은 코딩 교육 전문가입니다. 12개 지표를 모두 반영하여 JSON 형식으로 힌트를 반환해야 합니다.'},
                         {'role': 'user', 'content': prompt}
                     ],
-                    'max_tokens': 800,
+                    'max_tokens': 1000,
                     'temperature': 0.7,
                     'top_p': 0.9
                 }
@@ -246,19 +518,12 @@ def request_hint(request):
                         try:
                             llm_data = json.loads(llm_response_text)
                             hint_content = llm_data.get('hint_content', {})
-                            llm_metrics_raw = llm_data.get('llm_metrics', {})
 
-                            # LLM 지표 추출
-                            llm_metrics = {
-                                'algorithm_efficiency': llm_metrics_raw.get('algorithm_efficiency', 3),
-                                'code_readability': llm_metrics_raw.get('code_readability', 3),
-                                'design_pattern_fit': llm_metrics_raw.get('design_pattern_fit', 3),
-                                'edge_case_handling': llm_metrics_raw.get('edge_case_handling', 3),
-                                'code_conciseness': llm_metrics_raw.get('code_conciseness', 3),
-                                'function_separation': llm_metrics_raw.get('function_separation', 3)
-                            }
+                            # 코드 예시 들여쓰기 보정
+                            if hint_content.get('code_example'):
+                                hint_content['code_example'] = format_code_indentation(hint_content['code_example'])
 
-                            # 힌트 내용 구성
+                            # 힌트 내용 구성 (LLM 지표는 이미 evaluate_code_with_llm에서 계산됨)
                             hint_parts = []
                             if hint_content.get('summary'):
                                 hint_parts.append(f"💡 {hint_content['summary']}")
@@ -392,12 +657,23 @@ def request_hint(request):
     except Exception as e:
         print(f'Failed to save hint request: {str(e)}')
 
+    # 7단계: 응답 반환
+    response_data = {
+        'hint': hint_response,
+        'problem_id': problem_id,
+        'hint_purpose': hint_purpose,  # 'completion' or 'optimization'
+        'static_metrics': static_metrics,
+        'llm_metrics': llm_metrics
+    }
+
+    # optimization인 경우 약한 메트릭 정보 포함
+    if hint_purpose == 'optimization' and weak_metrics:
+        response_data['weak_metrics'] = [
+            {'metric': metric_name, 'score': score, 'description': desc}
+            for metric_name, score, desc in weak_metrics
+        ]
+
     return Response({
         'success': True,
-        'data': {
-            'hint': hint_response,
-            'problem_id': problem_id,
-            'static_metrics': static_metrics,
-            'llm_metrics': llm_metrics
-        }
+        'data': response_data
     })

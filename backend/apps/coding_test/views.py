@@ -26,7 +26,17 @@ class ProblemListView(generics.ListAPIView):
     permission_classes = []
 
     def get(self, request):
-        return Response({"message": "Problem list - To be implemented"})
+        try:
+            problems = load_problems()
+            return Response({
+                'success': True,
+                'data': problems
+            })
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'문제 목록 로드 실패: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ProblemDetailView(generics.RetrieveAPIView):
@@ -650,4 +660,50 @@ def reject_solution(request, proposal_id):
         'success': True,
         'message': '솔루션이 거부되었습니다.',
         'data': serializer.data
+    })
+
+
+# ==================== ProblemStatus APIs ====================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_problem_statuses(request):
+    """
+    사용자의 문제 상태 조회
+
+    Response:
+        {
+            "success": true,
+            "data": [
+                {
+                    "problem_id": "1000",
+                    "status": "solved",  # 'solved', 'upgrade', 'upgrading'
+                    "status_display": "내가 푼 문제",
+                    "best_score": 92.5,
+                    "first_solved_at": "2025-01-15T10:30:00Z"
+                },
+                ...
+            ]
+        }
+    """
+    from .models import ProblemStatus
+
+    problem_statuses = ProblemStatus.objects.filter(
+        user=request.user
+    ).select_related('problem').order_by('-first_solved_at')
+
+    data = [
+        {
+            'problem_id': ps.problem.problem_id,
+            'status': ps.status,
+            'status_display': ps.get_status_display(),
+            'best_score': ps.best_score,
+            'first_solved_at': ps.first_solved_at
+        }
+        for ps in problem_statuses
+    ]
+
+    return Response({
+        'success': True,
+        'data': data
     })

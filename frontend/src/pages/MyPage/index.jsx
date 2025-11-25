@@ -277,23 +277,23 @@ function MyPage() {
                             fullMark: 100
                           },
                           {
+                            subject: '실행 속도',
+                            value: Math.max(0, 100 - ((stats?.metrics?.avg_execution_time || 0) / 10)),
+                            fullMark: 100
+                          },
+                          {
+                            subject: '메모리 효율',
+                            value: Math.max(0, 100 - ((stats?.metrics?.avg_memory_usage || 0) / 100)),
+                            fullMark: 100
+                          },
+                          {
                             subject: '코드 품질',
                             value: stats?.metrics?.avg_code_quality_score || 0,
                             fullMark: 100
                           },
                           {
-                            subject: '패턴 일치도',
-                            value: stats?.metrics?.avg_algorithm_pattern_match || 0,
-                            fullMark: 100
-                          },
-                          {
                             subject: 'PEP8 준수',
                             value: Math.max(0, 100 - (stats?.metrics?.avg_pep8_violations || 0) * 5),
-                            fullMark: 100
-                          },
-                          {
-                            subject: '코드 간결성',
-                            value: Math.max(0, 100 - (stats?.metrics?.avg_code_complexity || 0) * 5),
                             fullMark: 100
                           }
                         ]}
