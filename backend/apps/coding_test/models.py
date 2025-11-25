@@ -341,6 +341,7 @@ class AIModelConfig(models.Model):
     MODE_CHOICES = [
         ('api', 'API 방식 (Hugging Face)'),
         ('local', '로컬 로드 방식'),
+        ('runpod', 'Runpod vLLM 방식'),
     ]
 
     MODEL_CHOICES = [
@@ -374,6 +375,23 @@ class AIModelConfig(models.Model):
         default=False,
         help_text='로컬 모드에서 모델이 메모리에 로드되었는지 여부'
     )
+
+    # Runpod 관련 필드
+    runpod_endpoint = models.URLField(
+        'Runpod Endpoint URL',
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text='Runpod vLLM 서버 엔드포인트 (예: https://abc-8000.proxy.runpod.net)'
+    )
+    runpod_api_key = models.CharField(
+        'Runpod API Key',
+        max_length=200,
+        blank=True,
+        null=True,
+        help_text='Runpod API Key (선택사항, vLLM 서버에 인증이 필요한 경우)'
+    )
+
     updated_at = models.DateTimeField('마지막 수정일', auto_now=True)
 
     class Meta:

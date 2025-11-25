@@ -564,6 +564,69 @@ def request_hint(request):
             hint_response = "모델이 로드되지 않았습니다. 관리자에게 문의하세요."
         else:
             hint_response = "[로컬 모델] 문제를 단계별로 나누어 생각해보세요."
+
+    elif ai_config.mode == 'runpod':
+        # Runpod vLLM 모드: OpenAI SDK를 사용하여 vLLM 서버에 요청
+        try:
+            from openai import OpenAI
+
+            if not ai_config.runpod_endpoint:
+                hint_response = "Runpod 엔드포인트가 설정되지 않았습니다. 관리자에게 문의하세요."
+            else:
+                # OpenAI 클라이언트 생성 (base_url을 Runpod 엔드포인트로 설정)
+                client = OpenAI(
+                    base_url=f"{ai_config.runpod_endpoint}/v1",
+                    api_key=ai_config.runpod_api_key or "EMPTY"  # vLLM은 API 키 불필요할 수 있음
+                )
+
+                # Qwen 2.5 Coder에 최적화된 시스템 프롬프트
+                system_prompt = """You are Qwen, created by Alibaba Cloud. You are a helpful coding assistant specialized in:
+- Code analysis and debugging
+- Algorithm explanation
+- Best practices in Python
+- Step-by-step problem solving guidance
+
+당신은 코딩 교육 전문가입니다. 12개 지표를 모두 반영하여 JSON 형식으로 힌트를 반환해야 합니다."""
+
+                # vLLM에 Chat Completion 요청
+                response = client.chat.completions.create(
+                    model=ai_config.model_name,
+                    messages=[
+                        {'role': 'system', 'content': system_prompt},
+                        {'role': 'user', 'content': prompt}
+                    ],
+                    temperature=0.7,
+                    top_p=0.9,
+                    max_tokens=1000
+                )
+
+                # 응답 파싱
+                llm_response_text = response.choices[0].message.content.strip()
+
+                # JSON 파싱 시도
+                try:
+                    llm_data = json.loads(llm_response_text)
+                    hint_response = llm_data.get('hint', llm_response_text)
+
+                    # LLM 지표 업데이트
+                    if 'metrics' in llm_data:
+                        metrics_from_llm = llm_data['metrics']
+                        llm_metrics['algorithm_efficiency'] = metrics_from_llm.get('algorithm_efficiency', 3)
+                        llm_metrics['code_readability'] = metrics_from_llm.get('code_readability', 3)
+                        llm_metrics['edge_case_handling'] = metrics_from_llm.get('edge_case_handling', 3)
+                        llm_metrics['code_conciseness'] = metrics_from_llm.get('code_conciseness', 3)
+                        llm_metrics['test_coverage_estimate'] = metrics_from_llm.get('test_coverage_estimate', 3)
+                        llm_metrics['security_awareness'] = metrics_from_llm.get('security_awareness', 3)
+                except json.JSONDecodeError:
+                    # JSON 파싱 실패 시 원본 텍스트 사용
+                    hint_response = llm_response_text
+
+        except ImportError:
+            hint_response = "OpenAI SDK가 설치되지 않았습니다. pip install openai를 실행하세요."
+        except Exception as e:
+            print(f'Runpod vLLM Error: {str(e)}')
+            hint_response = f"Runpod 연결 오류: {str(e)}. 엔드포인트 URL과 네트워크 연결을 확인하세요."
+
     else:
         hint_response = "알 수 없는 AI 모드입니다."
 

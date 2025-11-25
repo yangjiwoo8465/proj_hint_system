@@ -10,6 +10,10 @@ function ModelsTab({
   setModelName,
   isModelLoaded,
   aiConfigLoading,
+  runpodEndpoint,
+  setRunpodEndpoint,
+  runpodApiKey,
+  setRunpodApiKey,
   handleUpdateAIConfig,
   handleLoadModel,
   handleUnloadModel
@@ -51,6 +55,22 @@ function ModelsTab({
               <div className="mode-title">로컬 로드 방식</div>
               <div className="mode-description">
                 모델을 서버 메모리에 로드하여 사용합니다. 고성능 GPU(16GB+ VRAM)가 필요하지만 무제한 사용 가능합니다.
+              </div>
+            </div>
+          </label>
+
+          <label className={`mode-option ${aiMode === 'runpod' ? 'selected' : ''}`}>
+            <input
+              type="radio"
+              name="aiMode"
+              value="runpod"
+              checked={aiMode === 'runpod'}
+              onChange={(e) => setAiMode(e.target.value)}
+            />
+            <div className="mode-content">
+              <div className="mode-title">Runpod vLLM 방식</div>
+              <div className="mode-description">
+                Runpod에서 vLLM으로 실행 중인 Qwen 2.5 Coder 32B 모델에 연결합니다. 빠른 추론 속도와 코드 특화 성능을 제공합니다.
               </div>
             </div>
           </label>
@@ -117,6 +137,57 @@ function ModelsTab({
                 {aiConfigLoading ? '언로드 중...' : '모델 언로드'}
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {aiMode === 'runpod' && (
+        <div className="section-card">
+          <h3>Runpod vLLM 설정</h3>
+          <p className="section-description">
+            Runpod Workspace에서 실행 중인 vLLM 서버의 엔드포인트 URL을 입력하세요.
+          </p>
+
+          <div className="api-key-input">
+            <label htmlFor="runpod-endpoint">Runpod Endpoint URL</label>
+            <input
+              id="runpod-endpoint"
+              type="text"
+              value={runpodEndpoint}
+              onChange={(e) => setRunpodEndpoint(e.target.value)}
+              placeholder="https://your-pod-id-8000.proxy.runpod.net"
+              className="endpoint-input"
+            />
+            <small className="input-hint">
+              예시: https://abc123def456-8000.proxy.runpod.net (Runpod 대시보드에서 확인)
+            </small>
+          </div>
+
+          <div className="api-key-input">
+            <label htmlFor="runpod-api-key">Runpod API Key (선택사항)</label>
+            <input
+              id="runpod-api-key"
+              type="password"
+              value={runpodApiKey}
+              onChange={(e) => setRunpodApiKey(e.target.value)}
+              placeholder="Runpod API Key (vLLM 서버에 인증이 필요한 경우)"
+            />
+            <small className="input-hint">
+              대부분의 경우 API 키는 불필요합니다. vLLM 서버에 인증이 필요한 경우에만 입력하세요.
+            </small>
+          </div>
+
+          <div className="runpod-guide">
+            <h4>Runpod vLLM 서버 시작 가이드</h4>
+            <ol>
+              <li>Runpod에서 GPU Pod 생성 (권장: RTX 4090, A6000 이상)</li>
+              <li>터미널에서 <code>pip install vllm transformers</code> 실행</li>
+              <li><code>runpod_vllm/start_vllm.sh</code> 스크립트 실행</li>
+              <li>생성된 엔드포인트 URL을 위 필드에 입력</li>
+            </ol>
+            <p>
+              자세한 가이드는 <code>runpod_vllm/README.md</code> 파일을 참고하세요.
+            </p>
           </div>
         </div>
       )}

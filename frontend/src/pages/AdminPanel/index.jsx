@@ -39,6 +39,10 @@ function AdminPanel() {
   const [isModelLoaded, setIsModelLoaded] = useState(false)
   const [aiConfigLoading, setAiConfigLoading] = useState(false)
 
+  // Runpod 관련 상태
+  const [runpodEndpoint, setRunpodEndpoint] = useState('')
+  const [runpodApiKey, setRunpodApiKey] = useState('')
+
   useEffect(() => {
     fetchCurrentUser()
     fetchModels()
@@ -157,6 +161,8 @@ function AdminPanel() {
         setApiKey(config.api_key || '')
         setModelName(config.model_name)
         setIsModelLoaded(config.is_model_loaded)
+        setRunpodEndpoint(config.runpod_endpoint || '')
+        setRunpodApiKey(config.runpod_api_key || '')
       }
     } catch (error) {
       console.error('Failed to fetch AI config:', error)
@@ -169,7 +175,9 @@ function AdminPanel() {
       const response = await api.post('/coding-test/ai-config/update/', {
         mode: aiMode,
         api_key: apiKey,
-        model_name: modelName
+        model_name: modelName,
+        runpod_endpoint: runpodEndpoint,
+        runpod_api_key: runpodApiKey
       })
 
       if (response.data.success) {
@@ -714,6 +722,10 @@ function AdminPanel() {
             setModelName={setModelName}
             isModelLoaded={isModelLoaded}
             aiConfigLoading={aiConfigLoading}
+            runpodEndpoint={runpodEndpoint}
+            setRunpodEndpoint={setRunpodEndpoint}
+            runpodApiKey={runpodApiKey}
+            setRunpodApiKey={setRunpodApiKey}
             handleUpdateAIConfig={handleUpdateAIConfig}
             handleLoadModel={handleLoadModel}
             handleUnloadModel={handleUnloadModel}
