@@ -19,9 +19,14 @@ sentence-transformers==2.3.1
 torch==2.1.2
 transformers==4.36.2
 
+# LangGraph (힌트 시스템 그래프 워크플로우)
+langgraph>=0.0.30
+langchain-core>=0.1.0
+
 # API & HTTP
 requests==2.31.0
 httpx==0.26.0
+openai==1.12.0
 
 # Code Execution
 subprocess32==3.5.4; python_version < '3'

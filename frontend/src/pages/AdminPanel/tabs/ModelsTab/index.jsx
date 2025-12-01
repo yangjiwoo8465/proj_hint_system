@@ -14,6 +14,10 @@ function ModelsTab({
   setRunpodEndpoint,
   runpodApiKey,
   setRunpodApiKey,
+  hintEngine,
+  setHintEngine,
+  openaiApiKey,
+  setOpenaiApiKey,
   handleUpdateAIConfig,
   handleLoadModel,
   handleUnloadModel
@@ -71,6 +75,22 @@ function ModelsTab({
               <div className="mode-title">Runpod vLLM 방식</div>
               <div className="mode-description">
                 Runpod에서 vLLM으로 실행 중인 Qwen 2.5 Coder 32B 모델에 연결합니다. 빠른 추론 속도와 코드 특화 성능을 제공합니다.
+              </div>
+            </div>
+          </label>
+
+          <label className={`mode-option ${aiMode === 'openai' ? 'selected' : ''}`}>
+            <input
+              type="radio"
+              name="aiMode"
+              value="openai"
+              checked={aiMode === 'openai'}
+              onChange={(e) => setAiMode(e.target.value)}
+            />
+            <div className="mode-content">
+              <div className="mode-title">OpenAI API 방식</div>
+              <div className="mode-description">
+                OpenAI GPT 모델을 사용합니다. GPT-4, GPT-3.5-turbo 등 다양한 모델을 선택할 수 있습니다.
               </div>
             </div>
           </label>
@@ -192,13 +212,163 @@ function ModelsTab({
         </div>
       )}
 
+      {aiMode === 'openai' && (
+        <div className="section-card">
+          <h3>OpenAI API 설정</h3>
+          <p className="section-description">
+            OpenAI API 키를 입력하세요. GPT-4, GPT-3.5-turbo 등의 모델을 사용할 수 있습니다.
+          </p>
+
+          <div className="api-key-input">
+            <label htmlFor="openai-api-key">OpenAI API Key</label>
+            <input
+              id="openai-api-key"
+              type="password"
+              placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              value={openaiApiKey}
+              onChange={(e) => setOpenaiApiKey(e.target.value)}
+            />
+            <a
+              href="https://platform.openai.com/api-keys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="get-api-key-link"
+            >
+              API 키 발급받기
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* 힌트 엔진 선택 섹션 */}
+      <div className="section-card">
+        <h3>힌트 생성 엔진</h3>
+        <p className="section-description">
+          힌트 생성 방식을 선택하세요. 모든 사용자에게 동일하게 적용됩니다.
+        </p>
+
+        <div className="mode-selector">
+          <label className={`mode-option ${hintEngine === 'api' ? 'selected' : ''}`}>
+            <input
+              type="radio"
+              name="hintEngine"
+              value="api"
+              checked={hintEngine === 'api'}
+              onChange={(e) => setHintEngine(e.target.value)}
+            />
+            <div className="mode-content">
+              <div className="mode-title">기존 API 방식</div>
+              <div className="mode-description">
+                단일 API 호출로 힌트를 생성합니다. 간단하고 빠른 응답을 제공합니다.
+              </div>
+            </div>
+          </label>
+
+          <label className={`mode-option ${hintEngine === 'langgraph' ? 'selected' : ''}`}>
+            <input
+              type="radio"
+              name="hintEngine"
+              value="langgraph"
+              checked={hintEngine === 'langgraph'}
+              onChange={(e) => setHintEngine(e.target.value)}
+            />
+            <div className="mode-content">
+              <div className="mode-title">LangGraph 방식</div>
+              <div className="mode-description">
+                그래프 기반 워크플로우로 힌트를 생성합니다. 코드 분석, 별점 평가, 취약점 분석 등 단계별 처리로 더 정교한 힌트를 제공합니다.
+              </div>
+            </div>
+          </label>
+        </div>
+      </div>
+
       <div className="section-card">
         <h3>AI 모델 선택</h3>
         <p className="section-description">
-          힌트 생성에 사용할 AI 모델을 선택하세요. 모든 모델은 API 키가 필요하거나 로컬 실행을 권장합니다.
+          힌트 생성에 사용할 AI 모델을 선택하세요. {aiMode === 'openai' ? 'OpenAI GPT 모델을 선택할 수 있습니다.' : '모든 모델은 API 키가 필요하거나 로컬 실행을 권장합니다.'}
         </p>
 
         <div className="model-selector">
+          {aiMode === 'openai' ? (
+            <>
+              <label className={`mode-option ${modelName === 'gpt-5.1' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="modelName"
+                  value="gpt-5.1"
+                  checked={modelName === 'gpt-5.1'}
+                  onChange={(e) => setModelName(e.target.value)}
+                />
+                <div className="mode-content">
+                  <div className="mode-title">GPT-5.1</div>
+                  <div className="mode-description">
+                    • OpenAI 최신 플래그십 모델
+                    <br/>• 최고 수준의 성능
+                    <br/>• 복잡한 추론 능력
+                    <br/>• 고난이도 문제에 권장
+                  </div>
+                </div>
+              </label>
+
+              <label className={`mode-option ${modelName === 'gpt-4.1' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="modelName"
+                  value="gpt-4.1"
+                  checked={modelName === 'gpt-4.1'}
+                  onChange={(e) => setModelName(e.target.value)}
+                />
+                <div className="mode-content">
+                  <div className="mode-title">GPT-4.1</div>
+                  <div className="mode-description">
+                    • GPT-4 시리즈 최신 버전
+                    <br/>• 안정적인 고성능
+                    <br/>• 코딩 작업에 최적화
+                    <br/>• 범용적으로 권장
+                  </div>
+                </div>
+              </label>
+
+              <label className={`mode-option ${modelName === 'o3' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="modelName"
+                  value="o3"
+                  checked={modelName === 'o3'}
+                  onChange={(e) => setModelName(e.target.value)}
+                />
+                <div className="mode-content">
+                  <div className="mode-title">o3</div>
+                  <div className="mode-description">
+                    • 최신 추론 특화 모델
+                    <br/>• 복잡한 코딩 문제 해결
+                    <br/>• 깊은 사고 과정
+                    <br/>• 어려운 알고리즘에 권장
+                  </div>
+                </div>
+              </label>
+
+              <label className={`mode-option ${modelName === 'gpt-4o' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="modelName"
+                  value="gpt-4o"
+                  checked={modelName === 'gpt-4o'}
+                  onChange={(e) => setModelName(e.target.value)}
+                />
+                <div className="mode-content">
+                  <div className="mode-title">GPT-4o</div>
+                  <div className="mode-description">
+                    • 멀티모달 지원 모델
+                    <br/>• 128K 컨텍스트 윈도우
+                    <br/>• 빠르고 비용 효율적
+                    <br/>• 일반적인 힌트에 권장
+                  </div>
+                </div>
+              </label>
+            </>
+          ) : (
+            <>
           <label className={`mode-option ${modelName === 'meta-llama/Llama-3.2-3B-Instruct' ? 'selected' : ''}`}>
             <input
               type="radio"
@@ -293,6 +463,8 @@ function ModelsTab({
               </div>
             </div>
           </label>
+            </>
+          )}
         </div>
       </div>
 

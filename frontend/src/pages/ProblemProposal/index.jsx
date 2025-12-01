@@ -24,17 +24,9 @@ const ProblemProposal = () => {
   const [tagInput, setTagInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 난이도 레벨 이름 매핑 (1~26)
+  // 난이도 레벨 이름 매핑 (1~26단계)
   const getLevelName = (level) => {
-    const levels = {
-      1: 'Bronze 5', 2: 'Bronze 4', 3: 'Bronze 3', 4: 'Bronze 2', 5: 'Bronze 1',
-      6: 'Silver 5', 7: 'Silver 4', 8: 'Silver 3', 9: 'Silver 2', 10: 'Silver 1',
-      11: 'Gold 5', 12: 'Gold 4', 13: 'Gold 3', 14: 'Gold 2', 15: 'Gold 1',
-      16: 'Platinum 5', 17: 'Platinum 4', 18: 'Platinum 3', 19: 'Platinum 2', 20: 'Platinum 1',
-      21: 'Diamond 5', 22: 'Diamond 4', 23: 'Diamond 3', 24: 'Diamond 2', 25: 'Diamond 1',
-      26: 'Ruby 1'
-    };
-    return levels[level] || `Level ${level}`;
+    return `${level}단계`;
   };
 
   const handleChange = (field, value) => {

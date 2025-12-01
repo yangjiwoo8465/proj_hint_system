@@ -635,10 +635,10 @@
 }
 
 .view-all-btn {
+  display: block;
   width: 100%;
   max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
+  margin: 2rem auto 0;
   padding: 1rem;
   background: #000000;
   color: white;
@@ -648,6 +648,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
+  text-align: center;
 }
 
 .view-all-btn:hover {

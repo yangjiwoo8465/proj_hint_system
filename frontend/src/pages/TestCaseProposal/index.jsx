@@ -139,16 +139,13 @@ function TestCaseProposal() {
 
   return (
     <div className="test-case-proposal-page">
+      <button className="back-btn" onClick={() => navigate('/app/problems')}>← 돌아가기</button>
       <div className="proposal-header">
-        <button className="back-btn" onClick={() => navigate('/app/problems')}>
-          ← 돌아가기
-        </button>
         <h1>테스트 케이스 제안</h1>
-        <p>문제에 대한 새로운 테스트 케이스를 제안해주세요. 관리자의 승인 후 사용됩니다.</p>
+        <p className="header-description">문제에 대한 새로운 테스트 케이스를 제안해주세요. 관리자의 승인 후 사용됩니다.</p>
       </div>
 
-      <div className="proposal-content">
-        <form onSubmit={handleSubmit} className="proposal-form">
+      <form onSubmit={handleSubmit} className="proposal-form">
           <div className="form-group">
             <label htmlFor="problem_id">문제 선택 *</label>
             <select
@@ -298,7 +295,6 @@ function TestCaseProposal() {
             </button>
           </div>
         </form>
-      </div>
     </div>
   )
 }

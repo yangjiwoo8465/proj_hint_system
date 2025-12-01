@@ -7,6 +7,7 @@ import Layout from './components/Layout/Layout'
 import MainPage from './pages/MainPage'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
+import KakaoCallback from './pages/KakaoCallback'
 import Problems from './pages/Problems'
 import CodingTest from './pages/CodingTest'
 import Chatbot from './pages/Chatbot'
@@ -36,6 +37,9 @@ function App() {
       {/* 로그인/회원가입 */}
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+
+      {/* 카카오 로그인 콜백 */}
+      <Route path="/auth/kakao/callback" element={<KakaoCallback />} />
 
       {/* 인증된 사용자만 접근 가능한 페이지 */}
       <Route

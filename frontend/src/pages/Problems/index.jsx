@@ -12,12 +12,13 @@ function Problems() {
   const [submissions, setSubmissions] = useState([])
   const [problemStatuses, setProblemStatuses] = useState([]) // ProblemStatus from backend
   const [filters, setFilters] = useState({
-    statusFilter: 'all', // 'all', 'solved', 'unsolved', 'in_progress', 'upgrade'
+    statusFilter: 'all', // 'all', 'in_progress', 'star_0', 'star_1', 'star_2', 'star_3'
     categories: [],
     levels: [],
     tags: [],
   })
   const [expandedSection, setExpandedSection] = useState('levels') // 'levels' or 'tags' - 기본으로 levels 열림
+  const [bookmarkedProblems, setBookmarkedProblems] = useState([]) // 북마크된 문제 ID 목록
 
   useEffect(() => {
     // JSON 파일에서 문제 로드
@@ -35,6 +36,7 @@ function Problems() {
     // 사용자의 제출 기록 및 ProblemStatus 로드
     fetchSubmissions()
     fetchProblemStatuses()
+    fetchBookmarkStatus()
   }, [])
 
   const fetchSubmissions = async () => {
@@ -59,21 +61,52 @@ function Problems() {
     }
   }
 
+  const fetchBookmarkStatus = async () => {
+    try {
+      const response = await api.get('/coding-test/bookmarks/status/')
+      if (response.data.success) {
+        setBookmarkedProblems(response.data.data || [])
+      }
+    } catch (error) {
+      console.error('Failed to fetch bookmark status:', error)
+    }
+  }
+
+  const handleToggleBookmark = async (e, problemId) => {
+    e.stopPropagation() // 행 클릭 이벤트 방지
+    try {
+      const response = await api.post('/coding-test/bookmarks/toggle/', {
+        problem_id: problemId
+      })
+      if (response.data.success) {
+        if (response.data.data.bookmarked) {
+          setBookmarkedProblems(prev => [...prev, problemId])
+        } else {
+          setBookmarkedProblems(prev => prev.filter(id => id !== problemId))
+        }
+      }
+    } catch (error) {
+      console.error('Failed to toggle bookmark:', error)
+    }
+  }
+
+  const isBookmarked = (problemId) => {
+    return bookmarkedProblems.includes(problemId)
+  }
+
   const getProblemStatus = (problemId) => {
-    // 1. 우선 ProblemStatus 확인 (백엔드 상태 - solved/upgrade/upgrading)
+    // 1. ProblemStatus에서 별점(star_count) 확인
     const problemStatus = problemStatuses.find(ps => ps.problem_id === problemId)
-    if (problemStatus) {
-      return problemStatus.status // 'solved', 'upgrade', 'upgrading'
+    if (problemStatus && problemStatus.star_count !== undefined) {
+      // 별점이 있으면 star_1, star_2, star_3 반환
+      const starCount = problemStatus.star_count || 0
+      if (starCount >= 1) {
+        return `star_${starCount}`
+      }
     }
 
-    // 2. ProblemStatus가 없으면 로컬 제출 기록으로 판단
+    // 2. 제출 기록 또는 localStorage에 저장된 코드가 있으면 '푸는 중'
     const problemSubmissions = submissions.filter(s => s.problem_id === problemId)
-
-    // 성공한 제출이 있으면 in_progress (아직 ProblemStatus 생성 전)
-    const hasSuccess = problemSubmissions.some(s => s.result === 'success')
-    if (hasSuccess) return 'in_progress'
-
-    // 제출 기록이 있으면 in_progress
     if (problemSubmissions.length > 0) return 'in_progress'
 
     // 3. localStorage에 저장된 코드가 있는지 확인
@@ -85,8 +118,8 @@ function Problems() {
       }
     }
 
-    // 4. 아무것도 없으면 unsolved
-    return 'unsolved'
+    // 4. 아무것도 없으면 0별 (시도한 적 없음)
+    return 'star_0'
   }
 
   const handleProblemClick = (problemId) => {
@@ -134,13 +167,14 @@ function Problems() {
   }
 
   const filteredProblems = problems.filter(problem => {
-    // 상태 필터 (전체/푼 문제/안 푼 문제/푸는 중/업그레이드)
+    // 상태 필터 (전체/푸는 중/0별/1별/2별/3별)
     const status = getProblemStatus(problem.problem_id)
-    if (filters.statusFilter === 'solved' && status !== 'solved') return false
-    if (filters.statusFilter === 'unsolved' && status !== 'unsolved') return false
+
     if (filters.statusFilter === 'in_progress' && status !== 'in_progress') return false
-    // 업그레이드 필터: 'upgrade' 또는 'upgrading' 상태 포함
-    if (filters.statusFilter === 'upgrade' && status !== 'upgrade' && status !== 'upgrading') return false
+    if (filters.statusFilter === 'star_0' && status !== 'star_0') return false
+    if (filters.statusFilter === 'star_1' && status !== 'star_1') return false
+    if (filters.statusFilter === 'star_2' && status !== 'star_2') return false
+    if (filters.statusFilter === 'star_3' && status !== 'star_3') return false
 
     const matchesCategory = filters.categories.length === 0 || filters.categories.includes(problem.step_title)
     const matchesLevel = filters.levels.length === 0 || filters.levels.includes(problem.level)
@@ -200,37 +234,46 @@ function Problems() {
               <input
                 type="radio"
                 name="statusFilter"
-                checked={filters.statusFilter === 'solved'}
-                onChange={() => setFilters(prev => ({ ...prev, statusFilter: 'solved' }))}
-              />
-              내가 푼 문제
-            </label>
-            <label className="filter-checkbox">
-              <input
-                type="radio"
-                name="statusFilter"
-                checked={filters.statusFilter === 'upgrade'}
-                onChange={() => setFilters(prev => ({ ...prev, statusFilter: 'upgrade' }))}
-              />
-              업그레이드
-            </label>
-            <label className="filter-checkbox">
-              <input
-                type="radio"
-                name="statusFilter"
-                checked={filters.statusFilter === 'unsolved'}
-                onChange={() => setFilters(prev => ({ ...prev, statusFilter: 'unsolved' }))}
-              />
-              안 푼 문제
-            </label>
-            <label className="filter-checkbox">
-              <input
-                type="radio"
-                name="statusFilter"
                 checked={filters.statusFilter === 'in_progress'}
                 onChange={() => setFilters(prev => ({ ...prev, statusFilter: 'in_progress' }))}
               />
               푸는 중
+            </label>
+            <label className="filter-checkbox">
+              <input
+                type="radio"
+                name="statusFilter"
+                checked={filters.statusFilter === 'star_0'}
+                onChange={() => setFilters(prev => ({ ...prev, statusFilter: 'star_0' }))}
+              />
+              ☆ 0별
+            </label>
+            <label className="filter-checkbox">
+              <input
+                type="radio"
+                name="statusFilter"
+                checked={filters.statusFilter === 'star_1'}
+                onChange={() => setFilters(prev => ({ ...prev, statusFilter: 'star_1' }))}
+              />
+              ⭐ 1별
+            </label>
+            <label className="filter-checkbox">
+              <input
+                type="radio"
+                name="statusFilter"
+                checked={filters.statusFilter === 'star_2'}
+                onChange={() => setFilters(prev => ({ ...prev, statusFilter: 'star_2' }))}
+              />
+              ⭐⭐ 2별
+            </label>
+            <label className="filter-checkbox">
+              <input
+                type="radio"
+                name="statusFilter"
+                checked={filters.statusFilter === 'star_3'}
+                onChange={() => setFilters(prev => ({ ...prev, statusFilter: 'star_3' }))}
+              />
+              ⭐⭐⭐ 3별
             </label>
           </div>
         </div>
@@ -294,6 +337,7 @@ function Problems() {
         <table className="problems-table">
           <thead>
             <tr>
+              <th className="bookmark-col">북마크</th>
               <th>No.</th>
               <th>문제명</th>
               <th>단계</th>
@@ -304,15 +348,24 @@ function Problems() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="5" className="loading-cell">문제를 불러오는 중...</td>
+                <td colSpan="6" className="loading-cell">문제를 불러오는 중...</td>
               </tr>
             ) : filteredProblems.length === 0 ? (
               <tr>
-                <td colSpan="5" className="empty-cell">조건에 맞는 문제가 없습니다.</td>
+                <td colSpan="6" className="empty-cell">조건에 맞는 문제가 없습니다.</td>
               </tr>
             ) : (
               filteredProblems.map((problem, index) => (
                 <tr key={problem.problem_id}>
+                  <td className="bookmark-col">
+                    <button
+                      className={`bookmark-btn ${isBookmarked(problem.problem_id) ? 'bookmarked' : ''}`}
+                      onClick={(e) => handleToggleBookmark(e, problem.problem_id)}
+                      title={isBookmarked(problem.problem_id) ? '북마크 해제' : '북마크 추가'}
+                    >
+                      {isBookmarked(problem.problem_id) ? '★' : '☆'}
+                    </button>
+                  </td>
                   <td>{problem.problem_id}</td>
                   <td className="problem-title-cell">{problem.title}</td>
                   <td>{problem.level}</td>

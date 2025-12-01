@@ -4,6 +4,7 @@
 from django.urls import path
 from . import views
 from .hint_api import request_hint
+from .langgraph_hint import request_hint_langgraph, get_langgraph_status
 from .ai_config_api import (
     get_ai_config,
     update_ai_config,
@@ -20,7 +21,13 @@ from .roadmap_api import (
     get_user_badges,
     get_user_goals
 )
-from .metrics_validation_api import validate_metrics
+from .metrics_validation_api import (
+    validate_metrics,
+    evaluate_hint_quality,
+    save_hint_evaluation,
+    get_hint_evaluations,
+    get_evaluation_detail
+)
 from .submission_api import submit_code as submit_code_new
 from .problem_data_validation_api import (
     list_problems_for_validation,
@@ -38,8 +45,12 @@ urlpatterns = [
     path('execute/', views.execute_code, name='execute_code'),
     path('submit/', submit_code_new, name='submit_code'),  # 새로운 제출 API (숨겨진 테스트 케이스 사용)
 
-    # 힌트
+    # 힌트 (기존 API 방식)
     path('hints/', request_hint, name='request_hint'),
+
+    # 힌트 (LangGraph 방식)
+    path('hints/langgraph/', request_hint_langgraph, name='request_hint_langgraph'),
+    path('hints/langgraph/status/', get_langgraph_status, name='langgraph_status'),
 
     # 제출 기록
     path('submissions/', views.SubmissionListView.as_view(), name='submission_list'),
@@ -48,9 +59,10 @@ urlpatterns = [
     # 문제 상태
     path('problem-statuses/', views.get_problem_statuses, name='get_problem_statuses'),
 
-    # 북마크
+    # 문제 북마크
     path('bookmarks/', views.BookmarkListView.as_view(), name='bookmark_list'),
     path('bookmarks/toggle/', views.toggle_bookmark, name='toggle_bookmark'),
+    path('bookmarks/status/', views.get_bookmark_status, name='bookmark_status'),
 
     # 테스트 케이스 제안
     path('test-cases/propose/', views.propose_test_case, name='propose_test_case'),
@@ -85,6 +97,12 @@ urlpatterns = [
 
     # 관리자 - 메트릭 검증
     path('admin/validate-metrics/', validate_metrics, name='validate_metrics'),
+    path('admin/evaluate-hint/', evaluate_hint_quality, name='evaluate_hint_quality'),
+
+    # 관리자 - 힌트 평가 저장/조회
+    path('admin/evaluations/', get_hint_evaluations, name='get_hint_evaluations'),
+    path('admin/evaluations/save/', save_hint_evaluation, name='save_hint_evaluation'),
+    path('admin/evaluations/<int:evaluation_id>/', get_evaluation_detail, name='get_evaluation_detail'),
 
     # 관리자 - 문제 데이터 검증
     path('admin/problem-data/list/', list_problems_for_validation, name='list_problems_validation'),

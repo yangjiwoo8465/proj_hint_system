@@ -229,3 +229,8 @@ os.makedirs(BASE_DIR / 'logs', exist_ok=True)
 # Email Settings (개발 환경에서는 콘솔에 출력)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = 'noreply@pai.com'
+
+# Kakao OAuth Settings
+KAKAO_REST_API_KEY = os.getenv('KAKAO_REST_API_KEY', '')
+KAKAO_CLIENT_SECRET = os.getenv('KAKAO_CLIENT_SECRET', '')
+KAKAO_REDIRECT_URI = os.getenv('KAKAO_REDIRECT_URI', 'http://localhost:3000/auth/kakao/callback')

@@ -1,16 +1,12 @@
 /* Updated design - cleaner borders and softer appearance */
 .test-case-proposal-page {
-  padding: 2rem;
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
+  padding: 2rem;
   min-height: 100vh;
 }
 
-.proposal-header {
-  margin-bottom: 2rem;
-}
-
-.proposal-header .back-btn {
+.test-case-proposal-page .back-btn {
   background: transparent;
   border: none;
   color: #666;
@@ -21,30 +17,30 @@
   transition: color 0.3s;
 }
 
-.proposal-header .back-btn:hover {
+.test-case-proposal-page .back-btn:hover {
   color: #333;
+}
+
+.proposal-header {
+  margin-bottom: 2rem;
 }
 
 .proposal-header h1 {
   font-size: 2rem;
-  font-weight: bold;
-  margin-bottom: 0.5rem;
   color: #333;
+  margin-bottom: 0.5rem;
 }
 
-.proposal-header p {
+.header-description {
   color: #666;
   font-size: 1rem;
 }
 
-.proposal-content {
+.proposal-form {
   background: white;
   border-radius: 12px;
   padding: 2rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.proposal-form {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;

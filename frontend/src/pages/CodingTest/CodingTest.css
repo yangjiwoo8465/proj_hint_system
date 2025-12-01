@@ -1209,6 +1209,52 @@
   gap: 1.5rem;
 }
 
+/* 힌트 모드 선택 섹션 */
+.hint-mode-section {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.hint-mode-section h4 {
+  color: #333;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0 0 0.625rem 0;
+}
+
+.hint-mode-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mode-btn:hover {
+  background: #f5f5f5;
+}
+
+.mode-btn.active {
+  background: #333;
+  color: white;
+  border-color: #333;
+}
+
+.hint-mode-desc {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.75rem;
+  color: #888;
+}
+
 /* 프리셋 섹션 */
 .hint-preset-section {
   margin-bottom: 1rem;
@@ -1545,4 +1591,120 @@
     width: 95%;
     max-height: 90vh;
   }
+}
+
+/* ==================== COH (Chain of Hint) 스타일 ==================== */
+
+/* COH 상태 섹션 */
+.coh-status-section {
+  background-color: #e3f2fd;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  border-left: 4px solid #1976d2;
+}
+
+.coh-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.coh-level-name {
+  font-weight: bold;
+  color: #1976d2;
+  font-size: 14px;
+}
+
+.coh-hint-level {
+  font-size: 12px;
+  color: #666;
+  padding: 2px 8px;
+  background-color: rgba(255, 255, 255, 0.7);
+  border-radius: 4px;
+}
+
+.coh-hint-message {
+  font-size: 13px;
+  color: #333;
+  margin: 0;
+}
+
+.coh-hint-message.coh-max {
+  color: #4caf50;
+}
+
+/* 프리셋 버튼 COH 정보 */
+.preset-coh-info {
+  display: block;
+  font-size: 10px;
+  color: #888;
+  margin-top: 2px;
+  font-weight: normal;
+}
+
+/* 차단된 구성요소 알림 */
+.blocked-components-notice {
+  font-size: 12px;
+  color: #f44336;
+  margin: 4px 0 8px 0;
+  padding: 6px 10px;
+  background-color: #ffebee;
+  border-radius: 4px;
+}
+
+/* 차단된 구성요소 스타일 */
+.hint-option.blocked {
+  opacity: 0.5;
+}
+
+.hint-option.blocked label {
+  color: #999;
+  text-decoration: line-through;
+}
+
+.blocked-icon {
+  margin-left: 4px;
+  font-size: 12px;
+}
+
+/* 힌트 히스토리 COH 레벨 표시 */
+.hint-history-coh-level {
+  font-size: 11px;
+  color: #1976d2;
+  padding: 1px 6px;
+  background-color: #e3f2fd;
+  border-radius: 4px;
+  margin-left: 4px;
+}
+
+/* 힌트 히스토리 COH 정보 */
+.hint-history-coh-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.hint-history-coh-info .coh-badge {
+  font-weight: bold;
+  color: #1976d2;
+  padding: 2px 8px;
+  background-color: #e3f2fd;
+  border-radius: 4px;
+}
+
+.hint-history-coh-info .coh-detail {
+  color: #666;
+}
+
+.hint-history-coh-info .coh-blocked {
+  color: #f44336;
+  font-size: 11px;
 }

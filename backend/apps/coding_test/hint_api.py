@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from django.conf import settings
 from .models import HintRequest, Problem, AIModelConfig, HintMetrics
 from .code_analyzer import analyze_code
-from .badge_logic import check_and_award_badges
+from .badge_logic import check_and_award_badges, get_user_metrics_summary
 
 
 def load_problem_json():
@@ -65,7 +65,12 @@ def format_code_indentation(code_text):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def request_hint(request):
-    """힌트 요청 API - 두 가지 목적별 힌트 제공 (완료/최적화)"""
+    """힌트 요청 API - 두 가지 목적별 힌트 제공 (완료/최적화)
+
+    관리자 설정(hint_engine)에 따라:
+    - 'api': 기존 API 방식으로 힌트 생성
+    - 'langgraph': LangGraph 워크플로우로 힌트 생성
+    """
     problem_id = request.data.get('problem_id')
     user_code = request.data.get('user_code', '')
     previous_hints = request.data.get('previous_hints', [])  # Chain of Hints
@@ -85,6 +90,49 @@ def request_hint(request):
             'error': f'AI 설정 로드 실패: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    # 힌트 엔진 설정 확인 - LangGraph 방식이면 해당 함수로 위임
+    hint_engine = getattr(ai_config, 'hint_engine', 'api')
+    if hint_engine == 'langgraph':
+        import sys
+        sys.stderr.write(f"[hint_api DEBUG] Using LangGraph engine\n")
+        sys.stderr.flush()
+
+        from .langgraph_hint import run_langgraph_hint
+        try:
+            success, data, error, status_code = run_langgraph_hint(
+                user=request.user,
+                problem_id=problem_id,
+                user_code=user_code,
+                preset=request.data.get('preset', '중급'),
+                custom_components=request.data.get('custom_components', {}),
+                previous_hints=request.data.get('previous_hints', [])
+            )
+            sys.stderr.write(f"[hint_api DEBUG] run_langgraph_hint returned: success={success}, status={status_code}\n")
+            sys.stderr.flush()
+
+            if success:
+                sys.stderr.write(f"[hint_api DEBUG] Building success Response...\n")
+                sys.stderr.flush()
+                response = Response({'success': True, 'data': data})
+                sys.stderr.write(f"[hint_api DEBUG] Response built successfully\n")
+                sys.stderr.flush()
+                return response
+            else:
+                return Response({
+                    'success': False,
+                    'error': error,
+                    'fallback_available': True,
+                    'message': '기존 API 방식을 사용할 수 없습니다.'
+                }, status=status_code)
+        except Exception as e:
+            import traceback
+            sys.stderr.write(f"[hint_api ERROR] Exception in LangGraph call: {traceback.format_exc()}\n")
+            sys.stderr.flush()
+            return Response({
+                'success': False,
+                'error': f'LangGraph 호출 중 오류: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     # 문제 JSON에서 문제 정보 가져오기
     problems = load_problem_json()
     problem = next((p for p in problems if p['problem_id'] == str(problem_id)), None)
@@ -98,8 +146,12 @@ def request_hint(request):
     problem_title = problem.get('title', '')
     problem_description = problem.get('description', '')
 
-    # 2단계: ProblemStatus 조회 및 3단계: hint_purpose 결정
+    # 0단계: 별점 기반 목적 설정
+    # 별점(star_count): 0=미해결, 1=테스트통과, 2=품질70+, 3=품질90+
     hint_purpose = manual_purpose  # 수동 설정이 있으면 우선 사용
+    current_star_count = 0
+    max_star = 3
+
     if not hint_purpose:
         try:
             from .models import Problem, ProblemStatus
@@ -111,17 +163,22 @@ def request_hint(request):
                 ).first()
 
                 if not problem_status:
-                    # 첫 풀이
+                    # 첫 풀이 - 별 0개
+                    current_star_count = 0
                     hint_purpose = 'completion'
-                elif problem_status.status in ['upgrade', 'upgrading']:
-                    # 업그레이드/업그레이드(푸는 중)
-                    hint_purpose = 'optimization'
-                elif problem_status.status == 'solved':
-                    # 이미 최적 달성 (추가 개선 연습)
-                    hint_purpose = 'optimization'
                 else:
-                    # 기본값
-                    hint_purpose = 'completion'
+                    # 현재 별점 가져오기
+                    current_star_count = getattr(problem_status, 'star_count', 0) or 0
+
+                    if current_star_count == 0:
+                        # 별 0개: 완성 목적 (테스트 통과 필요)
+                        hint_purpose = 'completion'
+                    elif current_star_count < max_star:
+                        # 별 1-2개: 다음 별 획득 목적 (최적화)
+                        hint_purpose = 'optimization'
+                    else:
+                        # 별 3개 (최고): 이미 최적 - 다른 풀이 제안
+                        hint_purpose = 'optimal'
             else:
                 hint_purpose = 'completion'
         except Exception as e:
@@ -130,10 +187,15 @@ def request_hint(request):
 
     # 힌트 구성 가져오기 (커스텀 또는 프리셋)
     preset = request.data.get('preset')  # '초급', '중급', '고급', None
-    components = request.data.get('custom_components', {})
+    custom_components = request.data.get('custom_components', {})
 
-    # 프리셋이 지정된 경우 기본 구성 설정
-    if preset == '초급':
+    # 커스텀 컴포넌트가 있으면 그것을 사용, 없으면 프리셋에 따라 기본값 설정
+    # 요약(summary)은 항상 True
+    if custom_components:
+        # 커스텀 컴포넌트가 있으면 그것을 사용하고 요약만 항상 True로 설정
+        components = custom_components.copy()
+        components['summary'] = True
+    elif preset == '초급':
         components = {
             'summary': True, 'libraries': True, 'code_example': True,
             'step_by_step': False, 'complexity_hint': False,
@@ -146,6 +208,13 @@ def request_hint(request):
             'edge_cases': False, 'improvements': False
         }
     elif preset == '고급':
+        components = {
+            'summary': True, 'libraries': False, 'code_example': False,
+            'step_by_step': False, 'complexity_hint': False,
+            'edge_cases': False, 'improvements': False
+        }
+    else:
+        # 기본값
         components = {
             'summary': True, 'libraries': False, 'code_example': False,
             'step_by_step': False, 'complexity_hint': False,
@@ -177,81 +246,173 @@ def request_hint(request):
             'security_awareness': 3
         }
 
-    # 5단계: hint_purpose별 분기
+    # 3단계: 힌트 분기 결정 로직
+    # 분기 A: 문법 오류 있음 → 오류 수정 힌트만
+    # 분기 B: 목적이 completion + 로직 미완성 → 완성 힌트
+    # 분기 C: 목적이 completion + 로직 완성 → 완성 축하 + 별 평가
+    # 분기 D: 목적이 optimization + 로직 미완성 → 효율적 완성 힌트
+    # 분기 E: 목적이 optimization + 다음 별 달성 → 축하 + 별 재평가
+    # 분기 F: 목적이 optimal → 다른 풀이 제안
     weak_metrics = []
     purpose_context = ""
+    hint_branch = ""  # 분기 추적용
 
-    if hint_purpose == 'completion':
-        # 5-1. completion: 코드를 '동작'하게 만들기
-        if static_metrics['syntax_errors'] > 0:
+    # 로직 완성 여부 판단 (테스트 통과율 기반)
+    is_logic_complete = static_metrics['test_pass_rate'] >= 100
+
+    # 분기 A: 문법 오류가 있으면 오류 수정 힌트만 제공 (최우선)
+    if static_metrics['syntax_errors'] > 0:
+        hint_branch = 'A'
+        purpose_context = f"""
+[힌트 목적: 문법 오류 수정] (접근법 A)
+현재 코드에 문법 오류가 {static_metrics['syntax_errors']}개 있습니다.
+오류 수정에만 집중하세요. 최적화나 다른 힌트는 제공하지 마세요.
+- 어떤 문법 오류인지 구체적으로 설명
+- 어떻게 수정해야 하는지 명확히 제시
+- 수정 예시 코드 제공
+"""
+    elif hint_purpose == 'completion':
+        if not is_logic_complete:
+            # 분기 B: 완성 목적 + 로직 미완성
+            hint_branch = 'B'
             purpose_context = """
-[힌트 목적: 코드 완료]
-현재 코드에 문법 오류가 있습니다. 문법 오류를 수정하는 힌트를 제공하세요.
-- 어떤 문법 오류인지 설명
-- 어떻게 수정해야 하는지 구체적 방법 제시
+[힌트 목적: 코드 완성] (접근법 B)
+문법 오류는 없지만 테스트를 통과하지 못하고 있습니다.
+코드를 완성하여 테스트를 통과하도록 돕는 힌트를 제공하세요:
+- 입력 처리 방법
+- 필요한 자료구조 선택
+- 핵심 로직 구현 방향
+- 출력 형식 맞추기
 """
         else:
-            purpose_context = """
-[힌트 목적: 코드 완료]
-문법 오류는 없습니다. 다음 단계 로직을 구현하도록 돕는 힌트를 제공하세요.
-- 입력을 어떻게 처리해야 하는지
-- 어떤 자료구조를 사용해야 하는지
-- 출력 형식은 어떻게 맞춰야 하는지
+            # 분기 C: 완성 목적 + 로직 완성 → 별 1개 획득!
+            hint_branch = 'C'
+            purpose_context = f"""
+[축하! 테스트 통과!] (접근법 C)
+🌟 별 1개를 획득했습니다! (현재: {current_star_count} → 1)
+
+코드가 테스트를 통과했습니다. 다음 단계로:
+- 현재 코드 품질 점수: {static_metrics['code_quality_score']}/100
+- 별 2개 조건: 코드 품질 70점 이상
+- 별 3개 조건: 코드 품질 90점 이상
+
+더 높은 별을 받으려면 코드 품질을 개선해보세요!
 """
     elif hint_purpose == 'optimization':
-        # 5-2. optimization: 코드를 '효율적'으로 만들기
-        # 12개 메트릭 중 약점 파악
-        metric_scores = []
-
-        # 정적 지표 정규화 (0-100 → 0-5 스케일)
-        if static_metrics['syntax_errors'] > 0:
-            metric_scores.append(('syntax_errors', 1, f"문법 오류 {static_metrics['syntax_errors']}개"))
-
-        test_pass_score = (static_metrics['test_pass_rate'] / 100) * 5
-        if test_pass_score < 4:
-            metric_scores.append(('test_pass_rate', test_pass_score, f"테스트 통과율 {static_metrics['test_pass_rate']}%"))
-
-        if static_metrics.get('execution_time', 0) > 100:
-            exec_score = max(1, 5 - (static_metrics['execution_time'] / 200))
-            metric_scores.append(('execution_time', exec_score, f"실행 시간 {static_metrics['execution_time']}ms"))
-
-        if static_metrics.get('memory_usage', 0) > 1000:
-            mem_score = max(1, 5 - (static_metrics['memory_usage'] / 2000))
-            metric_scores.append(('memory_usage', mem_score, f"메모리 사용량 {static_metrics['memory_usage']}KB"))
-
-        quality_score = (static_metrics['code_quality_score'] / 100) * 5
-        if quality_score < 3.5:
-            metric_scores.append(('code_quality', quality_score, f"코드 품질 {static_metrics['code_quality_score']}/100"))
-
-        if static_metrics['pep8_violations'] > 3:
-            pep8_score = max(1, 5 - (static_metrics['pep8_violations'] / 2))
-            metric_scores.append(('pep8', pep8_score, f"PEP8 위반 {static_metrics['pep8_violations']}개"))
-
-        # LLM 지표 (이미 1-5 스케일)
-        for key, value in llm_metrics.items():
-            if value < 3.5:
-                metric_scores.append((key, value, f"{key}: {value}/5"))
-
-        # 가장 약한 1-2개 메트릭 선택
-        metric_scores.sort(key=lambda x: x[1])
-        weak_metrics = metric_scores[:2]
-
-        if weak_metrics:
-            weak_desc = "\n".join([f"- {desc}" for _, _, desc in weak_metrics])
+        if not is_logic_complete:
+            # 분기 D: 효율 목적인데 로직 미완성
+            hint_branch = 'D'
             purpose_context = f"""
-[힌트 목적: 코드 최적화]
-현재 코드의 약점:
-{weak_desc}
+[힌트 목적: 효율적 완성] (접근법 D)
+현재 별점: {current_star_count}개 (목표: {current_star_count + 1}개)
 
-위 약점을 개선하는 힌트를 제공하세요:
-- 구체적인 개선 방법
-- 최적화 기법
-- 리팩토링 제안
+먼저 테스트를 통과해야 합니다. 효율성도 고려하면서 완성하세요:
+- 효율적인 알고리즘 선택
+- 적절한 자료구조 사용
+- 불필요한 연산 피하기
 """
         else:
-            purpose_context = """
-[힌트 목적: 코드 최적화]
-현재 코드는 이미 우수합니다. 추가 개선 가능성을 탐색하는 힌트를 제공하세요.
+            # 분기 E: 효율 목적 + 로직 완성
+            # 12개 메트릭 중 약점 파악
+            metric_scores = []
+
+            test_pass_score = (static_metrics['test_pass_rate'] / 100) * 5
+            if test_pass_score < 4:
+                metric_scores.append(('test_pass_rate', test_pass_score, f"테스트 통과율 {static_metrics['test_pass_rate']}%"))
+
+            if static_metrics.get('execution_time', 0) > 100:
+                exec_score = max(1, 5 - (static_metrics['execution_time'] / 200))
+                metric_scores.append(('execution_time', exec_score, f"실행 시간 {static_metrics['execution_time']}ms"))
+
+            if static_metrics.get('memory_usage', 0) > 1000:
+                mem_score = max(1, 5 - (static_metrics['memory_usage'] / 2000))
+                metric_scores.append(('memory_usage', mem_score, f"메모리 사용량 {static_metrics['memory_usage']}KB"))
+
+            quality_score = (static_metrics['code_quality_score'] / 100) * 5
+            if quality_score < 3.5:
+                metric_scores.append(('code_quality', quality_score, f"코드 품질 {static_metrics['code_quality_score']}/100"))
+
+            if static_metrics['pep8_violations'] > 3:
+                pep8_score = max(1, 5 - (static_metrics['pep8_violations'] / 2))
+                metric_scores.append(('pep8', pep8_score, f"PEP8 위반 {static_metrics['pep8_violations']}개"))
+
+            # LLM 지표 (이미 1-5 스케일)
+            for key, value in llm_metrics.items():
+                if value < 3.5:
+                    metric_scores.append((key, value, f"{key}: {value}/5"))
+
+            metric_scores.sort(key=lambda x: x[1])
+            weak_metrics = metric_scores[:2]
+
+            # 다음 별 달성 조건 체크
+            next_star_achieved = False
+            if current_star_count == 1 and static_metrics['code_quality_score'] >= 70:
+                next_star_achieved = True
+            elif current_star_count == 2 and static_metrics['code_quality_score'] >= 90:
+                next_star_achieved = True
+
+            if next_star_achieved:
+                hint_branch = 'E1'
+                new_star = current_star_count + 1
+                purpose_context = f"""
+[축하! 별 {new_star}개 달성!] (접근법 E1)
+🌟🌟{'🌟' if new_star >= 3 else ''} 별 {new_star}개를 획득했습니다!
+
+현재 코드 상태:
+- 코드 품질: {static_metrics['code_quality_score']}/100
+- 테스트 통과율: {static_metrics['test_pass_rate']}%
+
+{'최고 등급 달성! 다른 풀이 방법도 시도해보세요.' if new_star >= 3 else f'다음 목표: 별 {new_star + 1}개 (품질 90점 필요)'}
+"""
+            else:
+                hint_branch = 'E2'
+                if weak_metrics:
+                    weak_desc = "\n".join([f"- {desc}" for _, _, desc in weak_metrics])
+                    purpose_context = f"""
+[힌트 목적: 코드 품질 개선] (접근법 E2)
+
+✅ 좋은 소식: 코드가 정상적으로 동작합니다! 테스트를 모두 통과했습니다.
+현재 별점: {current_star_count}개 ⭐
+
+🎯 다음 별({current_star_count + 1}개)을 획득하려면 아래 부분을 개선해야 합니다:
+{weak_desc}
+
+📍 힌트 제공 시 반드시 포함할 내용:
+1. "코드가 정상 동작한다"는 칭찬을 먼저 해주세요
+2. 개선이 필요한 **구체적인 코드 위치**(몇 번째 줄, 어떤 함수/변수)를 명시하세요
+3. 왜 그 부분이 문제인지 설명하세요
+4. 어떻게 수정하면 되는지 구체적인 방법을 제시하세요
+
+다음 별 조건:
+- 별 2개: 코드 품질 70점 이상 (현재: {static_metrics['code_quality_score']}점)
+- 별 3개: 코드 품질 90점 이상
+"""
+                else:
+                    purpose_context = f"""
+[힌트 목적: 코드 품질 개선] (접근법 E2)
+
+✅ 훌륭합니다! 코드가 정상적으로 동작하고, 품질도 우수합니다!
+현재 별점: {current_star_count}개 ⭐
+
+코드가 이미 좋은 상태이지만, 더 나은 코드를 위한 추가 개선점을 찾아보세요.
+힌트 제공 시 "코드가 잘 작성되었다"는 점을 먼저 인정해주세요.
+"""
+    elif hint_purpose == 'optimal':
+        # 분기 F: 이미 최적 (별 3개)
+        hint_branch = 'F'
+        purpose_context = f"""
+[최고 등급 달성!] (접근법 F)
+🌟🌟🌟 별 3개 (최적)를 이미 달성했습니다!
+
+현재 코드 상태:
+- 코드 품질: {static_metrics['code_quality_score']}/100
+- 테스트 통과율: {static_metrics['test_pass_rate']}%
+
+다른 풀이 방법을 제안해주세요:
+- 다른 알고리즘 접근법
+- 다른 자료구조 활용
+- 더 Pythonic한 방식
+- 학습 목적의 대안적 풀이
 """
 
     # 3단계: 이전 지표 평균 계산 (Chain of Hints)
@@ -365,6 +526,35 @@ def request_hint(request):
 
     components_str = "\n".join(prompt_components)
 
+    # 요약에 포함할 구성 안내 로직
+    # 선택한 구성: "→ 더 자세한 내용은 아래 'X' 를 참고하세요."
+    # 선택 안 한 구성: "→ 'X' 구성을 선택하면 더 자세한 힌트를 받을 수 있습니다."
+    component_guidance = []
+    component_names = {
+        'libraries': '사용 라이브러리',
+        'code_example': '코드 예시',
+        'step_by_step': '단계별 해결 방법',
+        'complexity_hint': '시간/공간 복잡도',
+        'edge_cases': '엣지 케이스',
+        'improvements': '개선 사항'
+    }
+
+    selected_components = []
+    unselected_components = []
+
+    for comp_key, comp_name in component_names.items():
+        if components.get(comp_key):
+            selected_components.append(comp_name)
+        else:
+            unselected_components.append(comp_name)
+
+    if selected_components:
+        component_guidance.append(f"→ 더 자세한 내용은 아래 '{', '.join(selected_components)}' 를 참고하세요.")
+    if unselected_components:
+        component_guidance.append(f"→ '{', '.join(unselected_components)}' 구성을 선택하면 더 자세한 힌트를 받을 수 있습니다.")
+
+    component_guidance_str = "\n".join(component_guidance)
+
     # 이전 힌트 컨텍스트 생성 (Chain of Hints)
     previous_hints_str = ""
     if previous_hints:
@@ -408,6 +598,57 @@ def request_hint(request):
 💡 개선된 지표는 칭찬하고, 악화된 지표는 구체적인 개선 방향을 제시하세요.
 """
 
+    # 사용자 전체 역량 프로필 (마이페이지 방사형 그래프 데이터) - 힌트 생성 시 10% 반영
+    user_profile_str = ""
+    try:
+        user_profile = get_user_metrics_summary(request.user)
+        if user_profile.get('total_problems', 0) > 0:
+            # 약한 지표 식별 (3점 미만)
+            weak_areas = []
+            if user_profile['avg_algorithm_efficiency'] < 3:
+                weak_areas.append(f"알고리즘 효율성 ({user_profile['avg_algorithm_efficiency']:.1f}/5)")
+            if user_profile['avg_code_readability'] < 3:
+                weak_areas.append(f"코드 가독성 ({user_profile['avg_code_readability']:.1f}/5)")
+            if user_profile['avg_edge_case_handling'] < 3:
+                weak_areas.append(f"엣지 케이스 처리 ({user_profile['avg_edge_case_handling']:.1f}/5)")
+            if user_profile['avg_code_conciseness'] < 3:
+                weak_areas.append(f"코드 간결성 ({user_profile['avg_code_conciseness']:.1f}/5)")
+            if user_profile['avg_code_quality_score'] < 50:
+                weak_areas.append(f"코드 품질 ({user_profile['avg_code_quality_score']:.1f}/100)")
+            if user_profile['avg_test_pass_rate'] < 80:
+                weak_areas.append(f"테스트 통과율 ({user_profile['avg_test_pass_rate']:.1f}%)")
+
+            weak_areas_str = "\n".join([f"  - {area}" for area in weak_areas]) if weak_areas else "  - 모든 영역이 양호합니다."
+
+            user_profile_str = f"""
+# 학생 역량 프로필 (평균 지표, 힌트 방향 결정에 10% 반영)
+이 학생의 평소 코딩 역량입니다. 약한 부분은 더 쉽게 설명하고, 강한 부분은 간략히 다루세요:
+
+## 정적 지표 평균 (6개)
+- 문법 오류 평균: {user_profile['avg_syntax_errors']:.1f}개
+- 테스트 통과율 평균: {user_profile['avg_test_pass_rate']:.1f}%
+- 코드 복잡도 평균: {user_profile['avg_code_complexity']:.1f}
+- 코드 품질 평균: {user_profile['avg_code_quality_score']:.1f}/100
+- 알고리즘 패턴 일치도 평균: {user_profile['avg_algorithm_pattern_match']:.1f}%
+- PEP8 위반 평균: {user_profile['avg_pep8_violations']:.1f}개
+
+## LLM 지표 평균 (6개, 각 1-5점)
+- 알고리즘 효율성 평균: {user_profile['avg_algorithm_efficiency']:.1f}/5
+- 코드 가독성 평균: {user_profile['avg_code_readability']:.1f}/5
+- 설계 패턴 적합도 평균: {user_profile['avg_design_pattern_fit']:.1f}/5
+- 엣지 케이스 처리 평균: {user_profile['avg_edge_case_handling']:.1f}/5
+- 코드 간결성 평균: {user_profile['avg_code_conciseness']:.1f}/5
+- 함수 분리 평균: {user_profile['avg_function_separation']:.1f}/5
+
+## 약한 영역 (더 자세한 설명 필요)
+{weak_areas_str}
+
+⚠️ 위 평균 지표에서 약한 부분은 힌트에서 더 자세히 설명해주세요.
+"""
+    except Exception as e:
+        print(f'Failed to get user profile metrics: {str(e)}')
+        user_profile_str = ""
+
     # 통합 프롬프트 생성 (6단계: LLM 힌트 생성)
     prompt = f"""당신은 Python 코딩 교육 전문가입니다.
 
@@ -436,16 +677,18 @@ def request_hint(request):
 - 코드 간결성: {llm_metrics['code_conciseness']}/5
 - 테스트 커버리지 추정: {llm_metrics.get('test_coverage_estimate', 3)}/5
 - 보안 인식: {llm_metrics.get('security_awareness', 3)}/5
-{metrics_history_str}{previous_hints_str}
+{metrics_history_str}{user_profile_str}{previous_hints_str}
 # 요청 사항
 위 힌트 목적과 12개 지표를 모두 반영하여 다음 항목만 포함한 힌트를 제공하세요:
 {components_str}
 
 ⚠️ 중요:
-- **힌트 목적에 따라 초점을 맞추세요** (완료: 동작하게 만들기 / 최적화: 효율적으로 만들기)
+- **힌트 목적에 따라 초점을 맞추세요** (완료: 동작하게 만들기 / 최적화: 효율적으로 만들기 / 최적: 다른 풀이 제안)
 - 12개 지표를 모두 고려하여 종합적인 피드백을 제공하세요
 - 이전 지표 평균이 있다면 개선/악화 여부를 명확히 언급하세요
 - 가장 시급한 개선 사항을 우선적으로 다루세요
+- **요약(summary) 마지막에 반드시 다음 안내를 포함하세요:**
+{component_guidance_str}
 
 # 응답 형식 (JSON)
 {{
@@ -496,7 +739,7 @@ def request_hint(request):
                         {'role': 'user', 'content': prompt}
                     ],
                     'max_tokens': 1000,
-                    'temperature': 0.7,
+                    'temperature': 0.3,
                     'top_p': 0.9
                 }
 
@@ -519,9 +762,17 @@ def request_hint(request):
                             llm_data = json.loads(llm_response_text)
                             hint_content = llm_data.get('hint_content', {})
 
-                            # 코드 예시 들여쓰기 보정
+                            # 코드 예시 처리 (리스트 → 문자열 변환 및 코드 블록 포맷팅)
                             if hint_content.get('code_example'):
-                                hint_content['code_example'] = format_code_indentation(hint_content['code_example'])
+                                code_example = hint_content['code_example']
+                                # 리스트로 왔을 경우 문자열로 변환
+                                if isinstance(code_example, list):
+                                    code_example = '\n'.join(code_example)
+                                # \\n을 실제 줄바꿈으로 변환
+                                code_example = code_example.replace('\\n', '\n')
+                                # 들여쓰기 보정
+                                code_example = format_code_indentation(code_example)
+                                hint_content['code_example'] = code_example
 
                             # 힌트 내용 구성 (LLM 지표는 이미 evaluate_code_with_llm에서 계산됨)
                             hint_parts = []
@@ -530,7 +781,7 @@ def request_hint(request):
                             if hint_content.get('libraries'):
                                 hint_parts.append(f"📚 사용 라이브러리: {', '.join(hint_content['libraries'])}")
                             if hint_content.get('code_example'):
-                                hint_parts.append(f"📝 코드 예시:\n{hint_content['code_example']}")
+                                hint_parts.append(f"📝 코드 예시:\n```python\n{hint_content['code_example']}\n```")
                             if hint_content.get('step_by_step'):
                                 steps = '\n'.join(f"{i+1}. {step}" for i, step in enumerate(hint_content['step_by_step']))
                                 hint_parts.append(f"📋 단계별 방법:\n{steps}")
@@ -595,7 +846,7 @@ def request_hint(request):
                         {'role': 'system', 'content': system_prompt},
                         {'role': 'user', 'content': prompt}
                     ],
-                    temperature=0.7,
+                    temperature=0.3,
                     top_p=0.9,
                     max_tokens=1000
                 )
@@ -724,9 +975,15 @@ def request_hint(request):
     response_data = {
         'hint': hint_response,
         'problem_id': problem_id,
-        'hint_purpose': hint_purpose,  # 'completion' or 'optimization'
+        'hint_purpose': hint_purpose,  # 'completion', 'optimization', 'optimal'
+        'hint_branch': hint_branch,  # 'A', 'B', 'C', 'D', 'E1', 'E2', 'F'
+        'current_star_count': current_star_count,  # 현재 별점 (0-3)
+        'max_star': max_star,  # 최대 별점 (3)
+        'is_logic_complete': is_logic_complete,  # 테스트 통과 여부
         'static_metrics': static_metrics,
-        'llm_metrics': llm_metrics
+        'llm_metrics': llm_metrics,
+        'selected_components': selected_components,  # 선택한 구성 목록
+        'unselected_components': unselected_components  # 미선택 구성 목록
     }
 
     # optimization인 경우 약한 메트릭 정보 포함

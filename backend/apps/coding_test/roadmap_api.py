@@ -59,13 +59,13 @@ def submit_survey(request):
 
 def generate_roadmap(user, survey):
     """설문조사 기반 로드맵 생성"""
-    # 선호 난이도에 따른 레벨 범위 설정
+    # 선호 난이도에 따른 레벨 범위 설정 (1~26단계 균등 분배)
     difficulty_map = {
-        'easy': (1, 5),
-        'medium': (6, 10),
-        'hard': (11, 15)
+        'easy': (1, 9),      # 1단계 ~ 9단계
+        'medium': (10, 18),  # 10단계 ~ 18단계
+        'hard': (19, 26)     # 19단계 ~ 26단계
     }
-    min_level, max_level = difficulty_map.get(survey.preferred_difficulty, (1, 5))
+    min_level, max_level = difficulty_map.get(survey.preferred_difficulty, (1, 9))
 
     # 관심 분야 태그로 문제 필터링
     interested_tags = survey.interested_topics

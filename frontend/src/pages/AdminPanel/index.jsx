@@ -43,6 +43,10 @@ function AdminPanel() {
   const [runpodEndpoint, setRunpodEndpoint] = useState('')
   const [runpodApiKey, setRunpodApiKey] = useState('')
 
+  // 힌트 엔진 및 OpenAI 관련 상태
+  const [hintEngine, setHintEngine] = useState('api')
+  const [openaiApiKey, setOpenaiApiKey] = useState('')
+
   useEffect(() => {
     fetchCurrentUser()
     fetchModels()
@@ -163,6 +167,8 @@ function AdminPanel() {
         setIsModelLoaded(config.is_model_loaded)
         setRunpodEndpoint(config.runpod_endpoint || '')
         setRunpodApiKey(config.runpod_api_key || '')
+        setHintEngine(config.hint_engine || 'api')
+        setOpenaiApiKey(config.openai_api_key || '')
       }
     } catch (error) {
       console.error('Failed to fetch AI config:', error)
@@ -177,7 +183,9 @@ function AdminPanel() {
         api_key: apiKey,
         model_name: modelName,
         runpod_endpoint: runpodEndpoint,
-        runpod_api_key: runpodApiKey
+        runpod_api_key: runpodApiKey,
+        hint_engine: hintEngine,
+        openai_api_key: openaiApiKey
       })
 
       if (response.data.success) {
@@ -726,6 +734,10 @@ function AdminPanel() {
             setRunpodEndpoint={setRunpodEndpoint}
             runpodApiKey={runpodApiKey}
             setRunpodApiKey={setRunpodApiKey}
+            hintEngine={hintEngine}
+            setHintEngine={setHintEngine}
+            openaiApiKey={openaiApiKey}
+            setOpenaiApiKey={setOpenaiApiKey}
             handleUpdateAIConfig={handleUpdateAIConfig}
             handleLoadModel={handleLoadModel}
             handleUnloadModel={handleUnloadModel}

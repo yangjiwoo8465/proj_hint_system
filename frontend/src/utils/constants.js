@@ -44,6 +44,8 @@ export const API_ENDPOINTS = {
     PROBLEMS: '/coding-test/problems/',
     EXECUTE: '/coding-test/execute/',
     HINTS: '/coding-test/hints/',
+    HINTS_LANGGRAPH: '/coding-test/hints/langgraph/',
+    HINTS_LANGGRAPH_STATUS: '/coding-test/hints/langgraph/status/',
     BOOKMARKS: '/coding-test/bookmarks/',
     SUBMISSIONS: '/coding-test/submissions/',
   },

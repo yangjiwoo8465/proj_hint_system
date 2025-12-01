@@ -10,7 +10,7 @@ class Problem(models.Model):
     problem_id = models.CharField('문제 ID', max_length=20, unique=True, db_index=True)
     step_title = models.CharField('단계 제목', max_length=200, blank=True)
     title = models.CharField('제목', max_length=200)
-    level = models.IntegerField('난이도', choices=[(i, f'레벨 {i}') for i in range(1, 6)])
+    level = models.IntegerField('난이도', choices=[(i, f'레벨 {i}') for i in range(1, 27)])
     tags = models.JSONField('태그', default=list)
     description = models.TextField('문제 설명')
     input_description = models.TextField('입력 설명')
@@ -106,7 +106,8 @@ class Bookmark(models.Model):
 class HintRequest(models.Model):
     """힌트 요청 기록 모델"""
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='hint_requests')
-    problem = models.ForeignKey(Problem, on_delete=models.CASCADE, related_name='hint_requests')
+    problem = models.ForeignKey(Problem, on_delete=models.CASCADE, related_name='hint_requests', null=True, blank=True)
+    problem_str_id = models.CharField('문제 ID (문자열)', max_length=50, blank=True)  # LangGraph용
     hint_level = models.CharField(
         '힌트 레벨',
         max_length=20,
@@ -114,11 +115,17 @@ class HintRequest(models.Model):
             ('small', '소 힌트'),
             ('medium', '중 힌트'),
             ('large', '대 힌트'),
-        ]
+        ],
+        blank=True
     )
+    hint_type = models.CharField('힌트 타입', max_length=50, blank=True)  # LangGraph 분기 타입
+    hint_branch = models.CharField('힌트 분기', max_length=10, blank=True)  # A, B, C, D, E1, E2, F
     user_code = models.TextField('사용자 코드')
+    code_hash = models.CharField('코드 해시', max_length=32, blank=True, db_index=True)  # COH 체크용
     hint_response = models.TextField('힌트 응답')
     model_used = models.CharField('사용 모델', max_length=100, blank=True)
+    is_langgraph = models.BooleanField('LangGraph 사용 여부', default=False)  # LangGraph vs 기존 API
+    coh_depth = models.IntegerField('COH 깊이', default=0)  # COH 상태 저장
     created_at = models.DateTimeField('요청일', auto_now_add=True)
 
     class Meta:
@@ -128,7 +135,9 @@ class HintRequest(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.user.username} - {self.problem.title} ({self.hint_level})"
+        method = 'LangGraph' if self.is_langgraph else 'API'
+        problem_info = self.problem.title if self.problem else self.problem_str_id
+        return f"{self.user.username} - {problem_info} ({method})"
 
 
 class TestCaseProposal(models.Model):
@@ -340,16 +349,28 @@ class AIModelConfig(models.Model):
     """AI 모델 설정 (싱글톤 패턴)"""
     MODE_CHOICES = [
         ('api', 'API 방식 (Hugging Face)'),
+        ('openai', 'OpenAI API'),
         ('local', '로컬 로드 방식'),
         ('runpod', 'Runpod vLLM 방식'),
     ]
 
     MODEL_CHOICES = [
-        ('meta-llama/Llama-3.2-3B-Instruct', 'Llama 3.2 3B Instruct (API 모드 지원)'),
-        ('Qwen/Qwen2.5-Coder-32B-Instruct', 'Qwen 2.5 Coder 32B (API 모드 지원)'),
-        ('mistralai/Mistral-7B-Instruct-v0.3', 'Mistral 7B Instruct (API 모드 지원)'),
-        ('google/gemma-2-9b-it', 'Gemma 2 9B IT (API 모드 지원)'),
-        ('ModelCloud/Brumby-14B-Base-GPTQMODEL-W4A16-v2', 'Brumby 14B Base (API 모드 지원)'),
+        # HuggingFace 모델
+        ('meta-llama/Llama-3.2-3B-Instruct', 'Llama 3.2 3B Instruct (HuggingFace)'),
+        ('Qwen/Qwen2.5-Coder-32B-Instruct', 'Qwen 2.5 Coder 32B (HuggingFace)'),
+        ('mistralai/Mistral-7B-Instruct-v0.3', 'Mistral 7B Instruct (HuggingFace)'),
+        ('google/gemma-2-9b-it', 'Gemma 2 9B IT (HuggingFace)'),
+        ('ModelCloud/Brumby-14B-Base-GPTQMODEL-W4A16-v2', 'Brumby 14B Base (HuggingFace)'),
+        # OpenAI 모델
+        ('gpt-5.1', 'GPT-5.1 (OpenAI 최신)'),
+        ('gpt-4.1', 'GPT-4.1 (OpenAI)'),
+        ('o3', 'o3 (OpenAI 추론 특화)'),
+        ('gpt-4o', 'GPT-4o (OpenAI)'),
+    ]
+
+    HINT_ENGINE_CHOICES = [
+        ('api', '기존 API 방식'),
+        ('langgraph', 'LangGraph 방식'),
     ]
 
     mode = models.CharField(
@@ -358,11 +379,24 @@ class AIModelConfig(models.Model):
         choices=MODE_CHOICES,
         default='api'
     )
+    hint_engine = models.CharField(
+        '힌트 엔진',
+        max_length=20,
+        choices=HINT_ENGINE_CHOICES,
+        default='api',
+        help_text='힌트 생성 방식 선택 (관리자만 변경 가능)'
+    )
     api_key = models.CharField(
         'Hugging Face API Key',
         max_length=200,
         blank=True,
-        help_text='API 방식 사용 시 필요'
+        help_text='HuggingFace API 방식 사용 시 필요'
+    )
+    openai_api_key = models.CharField(
+        'OpenAI API Key',
+        max_length=200,
+        blank=True,
+        help_text='OpenAI API 방식 사용 시 필요'
     )
     model_name = models.CharField(
         '모델 이름',
@@ -737,6 +771,10 @@ class ProblemStatus(models.Model):
     # 최고 점수 기록 (종합 점수)
     best_score = models.FloatField('최고 점수', default=0.0)
 
+    # 별점 (0~3개, 코드 효율성 기반)
+    # 0: 미해결, 1: 테스트 통과, 2: 품질 70점 이상, 3: 품질 90점 이상 + 효율성 통과
+    star_count = models.IntegerField('별점', default=0)
+
     # 최초 정답 제출 시간
     first_solved_at = models.DateTimeField('최초 정답일', null=True, blank=True)
 
@@ -755,6 +793,92 @@ class ProblemStatus(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.problem.title} ({self.get_status_display()})"
+
+
+class HintEvaluation(models.Model):
+    """힌트 품질 평가 결과 모델 (Human + LLM-as-Judge)"""
+    EVALUATION_TYPE_CHOICES = [
+        ('human', '휴먼 평가'),
+        ('llm', 'LLM-as-Judge'),
+    ]
+
+    # 관계
+    hint_request = models.ForeignKey(
+        HintRequest,
+        on_delete=models.CASCADE,
+        related_name='evaluations',
+        verbose_name='힌트 요청',
+        null=True,
+        blank=True
+    )
+    evaluator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='hint_evaluations',
+        verbose_name='평가자'
+    )
+
+    # 평가 유형
+    evaluation_type = models.CharField(
+        '평가 유형',
+        max_length=10,
+        choices=EVALUATION_TYPE_CHOICES,
+        default='human'
+    )
+
+    # 힌트 정보 (직접 저장)
+    problem_id = models.CharField('문제 ID', max_length=50)
+    problem_title = models.CharField('문제 제목', max_length=200, blank=True)
+    user_code = models.TextField('사용자 코드')
+    hint_text = models.TextField('힌트 텍스트')
+    hint_level = models.CharField('힌트 레벨', max_length=20, blank=True)  # 초급/중급/고급
+    hint_purpose = models.CharField('힌트 목적', max_length=20, blank=True)  # completion/optimization/optimal
+
+    # 5개 평가 지표 (1-5점)
+    hint_relevance = models.IntegerField('힌트 관련성', default=0, help_text='1-5점')
+    educational_value = models.IntegerField('교육적 가치', default=0, help_text='1-5점')
+    difficulty_appropriateness = models.IntegerField('난이도 적절성', default=0, help_text='1-5점')
+    code_accuracy = models.IntegerField('코드 정확성', default=0, help_text='1-5점')
+    completeness = models.IntegerField('완전성', default=0, help_text='1-5점')
+
+    # 평균 점수
+    average_score = models.FloatField('평균 점수', default=0.0)
+
+    # 상세 피드백 (JSON)
+    feedback = models.JSONField('상세 피드백', default=dict)
+
+    # 종합 의견
+    overall_comment = models.TextField('종합 의견', blank=True)
+
+    # 메타 정보
+    model_used = models.CharField('사용 모델', max_length=50, blank=True, help_text='LLM 평가 시 사용된 모델')
+    created_at = models.DateTimeField('평가일', auto_now_add=True)
+
+    class Meta:
+        db_table = 'hint_evaluations'
+        verbose_name = '힌트 평가'
+        verbose_name_plural = '힌트 평가 목록'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        eval_type = '휴먼' if self.evaluation_type == 'human' else 'LLM'
+        return f"[{eval_type}] {self.problem_id} - 평균 {self.average_score:.1f}점"
+
+    def save(self, *args, **kwargs):
+        # 평균 점수 자동 계산
+        scores = [
+            self.hint_relevance,
+            self.educational_value,
+            self.difficulty_appropriateness,
+            self.code_accuracy,
+            self.completeness
+        ]
+        valid_scores = [s for s in scores if s > 0]
+        if valid_scores:
+            self.average_score = sum(valid_scores) / len(valid_scores)
+        super().save(*args, **kwargs)
 
 
 class Roadmap(models.Model):

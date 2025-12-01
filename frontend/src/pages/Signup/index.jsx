@@ -147,13 +147,12 @@ function Signup() {
     <div className="signup-page">
       {/* 헤더 */}
       <header className="signup-header">
-        <div className="signup-logo" onClick={() => navigate('/')}>π</div>
-        <nav className="signup-nav">
-          <button onClick={() => navigate('/app/problems')}>공부하기</button>
-          <button onClick={() => navigate('/app/chatbot')}>챗봇</button>
-          <button onClick={() => navigate('/app/mypage')}>마이페이지</button>
-          <button onClick={() => navigate('/login')}>로그인</button>
-        </nav>
+        <div className="nav-left">
+          <div className="signup-logo" onClick={() => navigate('/')}>π</div>
+        </div>
+        <div className="nav-right">
+          <button className="nav-btn" onClick={() => navigate('/login')}>로그인</button>
+        </div>
       </header>
 
       {/* 회원가입 폼 */}
