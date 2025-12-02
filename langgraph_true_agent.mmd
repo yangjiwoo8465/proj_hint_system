@@ -1,0 +1,141 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4a90d9', 'primaryTextColor': '#000', 'primaryBorderColor': '#2d5986', 'lineColor': '#5c5c5c', 'secondaryColor': '#f0f0f0', 'tertiaryColor': '#fff'}}}%%
+
+flowchart TD
+    %% ==================== 범례 (좌측 상단) ====================
+    subgraph LEGEND1["🎯 Solution Matching 핵심 철학"]
+        direction TB
+        L1["❌ 사용자 코드를 '틀렸다'고 하지 않음"]
+        L2["✅ 사용자의 현재 방식 존중"]
+        L3["✅ '다음 단계' 안내 방식"]
+        L4["✅ solution_code 기반 code_example"]
+    end
+
+    subgraph LEGEND2["📋 분기 조건"]
+        direction TB
+        B_A["A: 코드 없음/문법 오류"]
+        B_B["B: completion + 테스트 미통과"]
+        B_C["C: completion + 첫 통과"]
+        B_D["D: optimization + 테스트 미통과"]
+        B_E1["E1: 별 획득"]
+        B_E2["E2: 품질 개선 필요"]
+        B_F["F: 최적 달성"]
+    end
+
+    subgraph LEGEND3["🔍 LLM 자기검증 기준"]
+        direction TB
+        V1["📊 상세도 적합성 판단"]
+        V2["📊 레벨별 규칙 준수 여부"]
+        V3["📊 코드 노출 수준 검증"]
+        V4["→ 부적합 시 재생성 루프"]
+    end
+
+    %% ==================== 메인 플로우 ====================
+    subgraph INPUT_STAGE["🔵 입력 단계"]
+        START(["▶ START"])
+        INPUT_NODE["🏠 input_node<br/>입력 검증 & 문제 로드<br/>(title, description, solutions)"]
+        START --> INPUT_NODE
+    end
+
+    subgraph MATCH_STAGE["🔵 솔루션 매칭"]
+        SOLUTION_MATCH["🔎 solution_match_node<br/>사용자 코드와<br/>가장 유사한 솔루션 매칭"]
+        INPUT_NODE --> SOLUTION_MATCH
+    end
+
+    subgraph PURPOSE_STAGE["🔵 목적 결정"]
+        PURPOSE_NODE["🎯 purpose_node<br/>별점 조회 & 목적 결정<br/>(completion/optimization/optimal)"]
+        SOLUTION_MATCH --> PURPOSE_NODE
+    end
+
+    subgraph PARALLEL_STAGE["🟢 병렬분석 단계"]
+        PARALLEL_NODE["⚡ parallel_analysis_node<br/>(ThreadPoolExecutor)"]
+        PURPOSE_NODE --> PARALLEL_NODE
+
+        subgraph STATIC_BOX["정적 분석"]
+            STATIC["📊 static_analysis<br/>정적 메트릭 6개<br/>- syntax_errors<br/>- test_pass_rate<br/>- execution_time<br/>- memory_usage<br/>- code_quality_score<br/>- pep8_violations"]
+        end
+
+        subgraph LLM_BOX["LLM 평가"]
+            LLM_EVAL["🤖 llm_eval<br/>LLM 메트릭 6개<br/>- algorithm_efficiency<br/>- code_readability<br/>- edge_case_handling<br/>- code_conciseness<br/>- test_coverage_estimate<br/>- security_awareness"]
+        end
+
+        PARALLEL_NODE --> STATIC
+        PARALLEL_NODE --> LLM_EVAL
+        STATIC --> MERGE["📦 결과 병합"]
+        LLM_EVAL --> MERGE
+    end
+
+    subgraph BRANCH_STAGE["🟠 분기 결정 단계"]
+        BRANCH_NODE["🔀 branch_node<br/>분기 결정 (A~F)"]
+        MERGE --> BRANCH_NODE
+
+        SKIP_CHECK{"❓ should_skip_coh<br/>A, C, E1 분기?"}
+        BRANCH_NODE --> SKIP_CHECK
+    end
+
+    subgraph COH_STAGE["🟢 COH 계산 단계"]
+        COH_CHECK["📊 coh_check_node<br/>COH 깊이 계산<br/>(code_hash 비교)"]
+        COH_LEVEL["📈 coh_level_node<br/>힌트 레벨 계산 (1-9)<br/>base_level - coh_depth"]
+        COMPONENT_FILTER["🧩 component_filter_node<br/>구성요소 필터링"]
+
+        SKIP_CHECK -->|"continue<br/>B, D, E2, F"| COH_CHECK
+        COH_CHECK --> COH_LEVEL
+        COH_LEVEL --> COMPONENT_FILTER
+    end
+
+    subgraph LLM_STAGE["🟢 LLM 힌트 생성"]
+        PROMPT_NODE["📝 prompt_node<br/>프롬프트 구성<br/>(COH 레벨 + 매칭된 솔루션 반영)"]
+        LLM_HINT["🤖 llm_hint_node<br/>GPT-4.1 힌트 생성<br/>(solution_code 참고)"]
+
+        COMPONENT_FILTER --> PROMPT_NODE
+        PROMPT_NODE --> LLM_HINT
+    end
+
+    subgraph VERIFY_STAGE["🔴 LLM 자기검증 (핵심!)"]
+        VERIFY_NODE{"🔬 verify_hint_node<br/>LLM 기반 검증<br/>(상세도/적합성 판단)"}
+        FEEDBACK_NODE["📋 feedback_node<br/>피드백 생성<br/>(구체적 수정 지침)"]
+        FORMAT_NODE["✨ format_node<br/>힌트 포맷팅"]
+
+        LLM_HINT --> VERIFY_NODE
+        VERIFY_NODE -->|"✅ 적합<br/>(상세도 적절)"| FORMAT_NODE
+        VERIFY_NODE -->|"❌ 부적합<br/>(너무 상세/추상)"| FEEDBACK_NODE
+        FEEDBACK_NODE -->|"재생성 루프"| PROMPT_NODE
+    end
+
+    subgraph SKIP_STAGE["🟡 COH & LLM 스킵 경로"]
+        SKIP_LLM["💬 skip_llm_node<br/>정적 힌트 반환<br/>(COH & LLM 스킵)"]
+        SKIP_CHECK -->|"skip<br/>A, C, E1"| SKIP_LLM
+    end
+
+    subgraph SAVE_STAGE["🟢 저장 단계"]
+        SAVE_NODE["💾 save_node<br/>DB 저장<br/>(code_hash, hint_branch,<br/>coh_depth, retry_count)"]
+        END_NODE(["■ END"])
+
+        FORMAT_NODE --> SAVE_NODE
+        SKIP_LLM --> SAVE_NODE
+        SAVE_NODE --> END_NODE
+    end
+
+    %% ==================== 스타일링 ====================
+    classDef startEnd fill:#4a90d9,stroke:#2d5986,color:white,stroke-width:2px
+    classDef inputNode fill:#fff3cd,stroke:#ffc107,color:#000,stroke-width:2px
+    classDef analysisNode fill:#d4edda,stroke:#28a745,color:#000,stroke-width:2px
+    classDef branchNode fill:#ffe0b2,stroke:#ff9800,color:#000,stroke-width:2px
+    classDef cohNode fill:#e8f5e9,stroke:#4caf50,color:#000,stroke-width:2px
+    classDef llmNode fill:#fce4ec,stroke:#e91e63,color:#000,stroke-width:2px
+    classDef verifyNode fill:#ffcdd2,stroke:#f44336,color:#000,stroke-width:3px
+    classDef skipNode fill:#fff9c4,stroke:#ffeb3b,color:#000,stroke-width:2px
+    classDef saveNode fill:#e3f2fd,stroke:#2196f3,color:#000,stroke-width:2px
+    classDef decisionNode fill:#fff3e0,stroke:#ff9800,color:#000,stroke-width:2px
+    classDef legendBox fill:#f5f5f5,stroke:#9e9e9e,color:#000,stroke-width:1px
+
+    class START,END_NODE startEnd
+    class INPUT_NODE,SOLUTION_MATCH,PURPOSE_NODE inputNode
+    class PARALLEL_NODE,STATIC,LLM_EVAL,MERGE analysisNode
+    class BRANCH_NODE branchNode
+    class SKIP_CHECK,VERIFY_NODE decisionNode
+    class COH_CHECK,COH_LEVEL,COMPONENT_FILTER cohNode
+    class PROMPT_NODE,LLM_HINT llmNode
+    class FEEDBACK_NODE,FORMAT_NODE verifyNode
+    class SKIP_LLM skipNode
+    class SAVE_NODE saveNode
+    class L1,L2,L3,L4,B_A,B_B,B_C,B_D,B_E1,B_E2,B_F,V1,V2,V3,V4 legendBox

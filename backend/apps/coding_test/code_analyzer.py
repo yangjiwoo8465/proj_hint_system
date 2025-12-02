@@ -15,7 +15,7 @@ import pycodestyle
 
 def load_problem_json():
     """문제 JSON 파일 로드"""
-    json_path = Path(__file__).parent / 'data' / 'problems_final_cleaned.json'
+    json_path = Path(__file__).parent / 'data' / 'problems_final_output.json'
     with open(json_path, 'r', encoding='utf-8-sig') as f:
         return json.load(f)
 

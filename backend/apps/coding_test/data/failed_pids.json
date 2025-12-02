@@ -1,0 +1,610 @@
+[
+  {
+    "pid": "1040",
+    "title": "정수",
+    "example_idx": 1,
+    "expected": "12411",
+    "actual": "111",
+    "success": true
+  },
+  {
+    "pid": "1067",
+    "title": "신호 패턴 매칭",
+    "example_idx": 2,
+    "expected": "28886",
+    "actual": "27221",
+    "success": true
+  },
+  {
+    "pid": "1069",
+    "title": "집으로",
+    "example_idx": 5,
+    "expected": "10.0",
+    "actual": "10",
+    "success": true
+  },
+  {
+    "pid": "1144",
+    "title": "싼 비용",
+    "example_idx": 1,
+    "expected": "0",
+    "actual": "1",
+    "success": true
+  },
+  {
+    "pid": "1420",
+    "title": "학교 가지마!",
+    "example_idx": 1,
+    "expected": "3",
+    "actual": "1",
+    "success": true
+  },
+  {
+    "pid": "1463",
+    "title": "K로 만들기",
+    "example_idx": 1,
+    "expected": "2",
+    "actual": "3",
+    "success": true
+  },
+  {
+    "pid": "1546",
+    "title": "평균",
+    "example_idx": 1,
+    "expected": "66.666667",
+    "actual": "66.66666666666667",
+    "success": true
+  },
+  {
+    "pid": "1648",
+    "title": "격자판 채우기 - 프로필 DP",
+    "example_idx": 1,
+    "expected": "36",
+    "actual": "4",
+    "success": true
+  },
+  {
+    "pid": "1932",
+    "title": "정수 피라미드 - 역방향",
+    "example_idx": 1,
+    "expected": "22",
+    "actual": "17",
+    "success": true
+  },
+  {
+    "pid": "2108",
+    "title": "통계학",
+    "example_idx": 1,
+    "expected": "4001",
+    "actual": "4000\n4000\n4000\n0",
+    "success": true
+  },
+  {
+    "pid": "2169",
+    "title": "로봇 탐사 - 제약 변형",
+    "example_idx": 1,
+    "expected": "28",
+    "actual": "27",
+    "success": true
+  },
+  {
+    "pid": "2252",
+    "title": "줄 세우기",
+    "example_idx": 1,
+    "expected": "4 2 3 1",
+    "actual": "3 4 1 2",
+    "success": true
+  },
+  {
+    "pid": "2316",
+    "title": "도시 왕복하기 2",
+    "example_idx": 2,
+    "expected": "1",
+    "actual": "2",
+    "success": true
+  },
+  {
+    "pid": "2803",
+    "title": "프로젝트 팀 구성",
+    "example_idx": 1,
+    "expected": "1",
+    "actual": "3",
+    "success": true
+  },
+  {
+    "pid": "4149",
+    "title": "큰 수 소인수분해 - 폴라드 로",
+    "example_idx": 1,
+    "expected": "3\n5",
+    "actual": "15",
+    "success": true
+  },
+  {
+    "pid": "5820",
+    "title": "경주",
+    "example_idx": 1,
+    "expected": "-1",
+    "actual": "2",
+    "success": true
+  },
+  {
+    "pid": "9522",
+    "title": "직선 게임",
+    "example_idx": 1,
+    "expected": "Slavko",
+    "actual": "Mirko",
+    "success": true
+  },
+  {
+    "pid": "9662",
+    "title": "돌 게임 8",
+    "example_idx": 1,
+    "expected": "499",
+    "actual": "999",
+    "success": true
+  },
+  {
+    "pid": "11001",
+    "title": "제품 숙성 최적화",
+    "example_idx": 1,
+    "expected": "61",
+    "actual": "62",
+    "success": true
+  },
+  {
+    "pid": "11191",
+    "title": "Xor Maximization",
+    "example_idx": 1,
+    "expected": "14",
+    "actual": "4",
+    "success": true
+  },
+  {
+    "pid": "11402",
+    "title": "이항 계수 4 - 뤼카의 정리",
+    "example_idx": 1,
+    "expected": "5",
+    "actual": "0",
+    "success": true
+  },
+  {
+    "pid": "11694",
+    "title": "님 게임",
+    "example_idx": 1,
+    "expected": "민수",
+    "actual": "koosaga",
+    "success": true
+  },
+  {
+    "pid": "11710",
+    "title": "Cost Performance 플로우",
+    "example_idx": 1,
+    "expected": "10/1",
+    "actual": "0/1",
+    "success": true
+  },
+  {
+    "pid": "11717",
+    "title": "Wall Making Game",
+    "example_idx": 2,
+    "expected": "First",
+    "actual": "Second",
+    "success": true
+  },
+  {
+    "pid": "11868",
+    "title": "님 게임 2",
+    "example_idx": 1,
+    "expected": "민수",
+    "actual": "koosaga",
+    "success": true
+  },
+  {
+    "pid": "12015",
+    "title": "가장 긴 증가하는 부분 수열 2 - LIS 길이",
+    "example_idx": 1,
+    "expected": "4",
+    "actual": "3",
+    "success": true
+  },
+  {
+    "pid": "12852",
+    "title": "1로 만들기 2 - 경로 변형",
+    "example_idx": 1,
+    "expected": "3\n16 8 4 2 1",
+    "actual": "4\n16 8 4 3 1",
+    "success": true
+  },
+  {
+    "pid": "13018",
+    "title": "작업 배정 최적화",
+    "example_idx": 1,
+    "expected": "NO",
+    "actual": "16",
+    "success": true
+  },
+  {
+    "pid": "13034",
+    "title": "다각형 게임",
+    "example_idx": 3,
+    "expected": "2",
+    "actual": "3",
+    "success": true
+  },
+  {
+    "pid": "13332",
+    "title": "Project Team",
+    "example_idx": 1,
+    "expected": "-1",
+    "actual": "0",
+    "success": true
+  },
+  {
+    "pid": "13448",
+    "title": "SW 역량 테스트",
+    "example_idx": 1,
+    "expected": "0",
+    "actual": "Error: Traceback (most recent call last):\n  File \"<string",
+    "success": false
+  },
+  {
+    "pid": "13976",
+    "title": "타일 채우기 2 - 큰 N",
+    "example_idx": 1,
+    "expected": "11",
+    "actual": "10",
+    "success": true
+  },
+  {
+    "pid": "14636",
+    "title": "Money 반복문 Nothing",
+    "example_idx": 1,
+    "expected": "0",
+    "actual": "21",
+    "success": true
+  },
+  {
+    "pid": "14750",
+    "title": "Jerry and Tom",
+    "example_idx": 1,
+    "expected": "Impossible",
+    "actual": "Possible",
+    "success": true
+  },
+  {
+    "pid": "15439",
+    "title": "베라의 패션 - 조합 변형",
+    "example_idx": 1,
+    "expected": "20",
+    "actual": "15",
+    "success": true
+  },
+  {
+    "pid": "16229",
+    "title": "반복 패턴",
+    "example_idx": 1,
+    "expected": "0",
+    "actual": "5",
+    "success": true
+  },
+  {
+    "pid": "16883",
+    "title": "대각 게임",
+    "example_idx": 1,
+    "expected": "koosaga",
+    "actual": "cubelover",
+    "success": true
+  },
+  {
+    "pid": "17131",
+    "title": "여우가 점보섬에 올라온 이유",
+    "example_idx": 1,
+    "expected": "10",
+    "actual": "1",
+    "success": true
+  },
+  {
+    "pid": "17409",
+    "title": "성과 트렌드 분석",
+    "example_idx": 1,
+    "expected": "9",
+    "actual": "4",
+    "success": true
+  },
+  {
+    "pid": "17435",
+    "title": "합성함수와 쿼리",
+    "example_idx": 1,
+    "expected": "2\n5\n1\n7\n3\n7",
+    "actual": "2\n5\n1\n7\n7\n7",
+    "success": true
+  },
+  {
+    "pid": "20149",
+    "title": "케이블 교차점 찾기",
+    "example_idx": 4,
+    "expected": "1\n3 3",
+    "actual": "1\n3.0 3.0",
+    "success": true
+  },
+  {
+    "pid": "20176",
+    "title": "Needle",
+    "example_idx": 1,
+    "expected": "2",
+    "actual": "0",
+    "success": true
+  },
+  {
+    "pid": "20412",
+    "title": "추첨상 사수 대작전!",
+    "example_idx": 2,
+    "expected": "2 2",
+    "actual": "0 9",
+    "success": true
+  },
+  {
+    "pid": "20670",
+    "title": "미스테리 싸인",
+    "example_idx": 1,
+    "expected": "4",
+    "actual": "YES",
+    "success": true
+  },
+  {
+    "pid": "20944",
+    "title": "팰린드롬 척화비",
+    "example_idx": 1,
+    "expected": "sts",
+    "actual": "aaa",
+    "success": true
+  },
+  {
+    "pid": "22029",
+    "title": "철도",
+    "example_idx": 1,
+    "expected": "4\n1 2\n2 3\n3 4\n4 1",
+    "actual": "4\n1 2 3 4",
+    "success": true
+  },
+  {
+    "pid": "23381",
+    "title": "Gyrating Glyphs",
+    "example_idx": 1,
+    "expected": "? 1 1 1 1 1 1 1 1 1 1 1\n\n? 0 4 2 4 2 4 2 4 2 4 2\n\n? 1 2 3 4 5 6 7 8 9 10 11\n\n! ++xxx+x+xx",
+    "actual": "!",
+    "success": true
+  },
+  {
+    "pid": "23656",
+    "title": "Jack and Jill",
+    "example_idx": 1,
+    "expected": "<\n<\n...and so on...\n<\n<",
+    "actual": ">",
+    "success": true
+  },
+  {
+    "pid": "25051",
+    "title": "천체 관측",
+    "example_idx": 1,
+    "expected": "126",
+    "actual": "285",
+    "success": true
+  },
+  {
+    "pid": "25184",
+    "title": "동가수열 구하기",
+    "example_idx": 1,
+    "expected": "2 4 1 3",
+    "actual": "1 2 3 4",
+    "success": true
+  },
+  {
+    "pid": "25672",
+    "title": "짝수와 홀수 조합",
+    "example_idx": 1,
+    "expected": "3 0\n\n2 1\n1\n3 3\n1 2 3\n3 1\n1\n3 1\n2\n3 1\n3",
+    "actual": "6",
+    "success": true
+  },
+  {
+    "pid": "27312",
+    "title": "운영진에게 설정 짜기는 어려워",
+    "example_idx": 1,
+    "expected": "? 1 1\n? 1 2\n? 1 3\n! 2 1 3 5",
+    "actual": "5\n5\n5",
+    "success": true
+  },
+  {
+    "pid": "28065",
+    "title": "SW 수열 구하기",
+    "example_idx": 1,
+    "expected": "4 1 3 2",
+    "actual": "1 2 3 4",
+    "success": true
+  },
+  {
+    "pid": "28121",
+    "title": "산책과 쿼리",
+    "example_idx": 1,
+    "expected": "0\n0\n0\n0",
+    "actual": "1",
+    "success": true
+  },
+  {
+    "pid": "28122",
+    "title": "아이템",
+    "example_idx": 2,
+    "expected": "3",
+    "actual": "0",
+    "success": true
+  },
+  {
+    "pid": "31836",
+    "title": "피보나치 기념품",
+    "example_idx": 1,
+    "expected": "2\n1 3\n1\n4",
+    "actual": "3\n1\n1\n2\n3\n4",
+    "success": true
+  },
+  {
+    "pid": "32395",
+    "title": "네트워크 사각형 패턴",
+    "example_idx": 1,
+    "expected": "3",
+    "actual": "1",
+    "success": true
+  },
+  {
+    "pid": "33918",
+    "title": "맛있는 스콘 만들기",
+    "example_idx": 1,
+    "expected": "23",
+    "actual": "3",
+    "success": true
+  },
+  {
+    "pid": "33983",
+    "title": "리스트 탐색 - 선형",
+    "example_idx": 1,
+    "expected": "-1",
+    "actual": "Error: Traceback (most recent call last):\n  File \"<string",
+    "success": false
+  },
+  {
+    "pid": "33987",
+    "title": "선택 정렬",
+    "example_idx": 1,
+    "expected": "2 8 6",
+    "actual": "7",
+    "success": true
+  },
+  {
+    "pid": "33994",
+    "title": "회문 판별",
+    "example_idx": 1,
+    "expected": "YES",
+    "actual": "NO",
+    "success": true
+  },
+  {
+    "pid": "34027",
+    "title": "재귀 - 하노이",
+    "example_idx": 1,
+    "expected": "3",
+    "actual": "2",
+    "success": true
+  },
+  {
+    "pid": "34046",
+    "title": "투포인터 - 세 수의 합",
+    "example_idx": 1,
+    "expected": "1",
+    "actual": "0",
+    "success": true
+  },
+  {
+    "pid": "34066",
+    "title": "그리디 기본 - 동전 교환",
+    "example_idx": 1,
+    "expected": "2",
+    "actual": "1",
+    "success": true
+  },
+  {
+    "pid": "34069",
+    "title": "그리디 기본 - 분수 배낭",
+    "example_idx": 1,
+    "expected": "130.00",
+    "actual": "160.00",
+    "success": true
+  },
+  {
+    "pid": "34084",
+    "title": "해시맵 - 두 합",
+    "example_idx": 2,
+    "expected": "-1 -1",
+    "actual": "Error: ",
+    "success": true
+  },
+  {
+    "pid": "34093",
+    "title": "계단 오르기 1",
+    "example_idx": 1,
+    "expected": "45",
+    "actual": "35",
+    "success": true
+  },
+  {
+    "pid": "34123",
+    "title": "경로 존재 여부",
+    "example_idx": 1,
+    "expected": "-1",
+    "actual": "0",
+    "success": true
+  },
+  {
+    "pid": "34645",
+    "title": "온라인 - 스키 대여",
+    "example_idx": 1,
+    "expected": "20\n1.333",
+    "actual": "19\n1.900",
+    "success": true
+  },
+  {
+    "pid": "34646",
+    "title": "근사 - TSP 근사",
+    "example_idx": 2,
+    "expected": "20\n0 1 2 3 4 0",
+    "actual": "25\n0 1 2 3 4 0",
+    "success": true
+  },
+  {
+    "pid": "34647",
+    "title": "온라인 - 페이징",
+    "example_idx": 2,
+    "expected": "10",
+    "actual": "12",
+    "success": true
+  },
+  {
+    "pid": "34654",
+    "title": "근사 - 정점 덮개",
+    "example_idx": 1,
+    "expected": "2\n1 3",
+    "actual": "4\n1 2 3 4",
+    "success": true
+  },
+  {
+    "pid": "34703",
+    "title": "두 수 합 개수 세기",
+    "example_idx": 2,
+    "expected": "6",
+    "actual": "2",
+    "success": true
+  },
+  {
+    "pid": "34977",
+    "title": "거듭제곱 빠르게 계산하기",
+    "example_idx": 2,
+    "expected": "688423210",
+    "actual": "226732710",
+    "success": true
+  },
+  {
+    "pid": "36016",
+    "title": "알파벳/숫자만 남기기",
+    "example_idx": 1,
+    "expected": "3",
+    "actual": "14",
+    "success": true
+  },
+  {
+    "pid": "36020",
+    "title": "배열 요소 존재 확인",
+    "example_idx": 1,
+    "expected": "NO",
+    "actual": "YES",
+    "success": true
+  }
+]

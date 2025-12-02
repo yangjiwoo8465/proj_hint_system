@@ -16,16 +16,9 @@ from .models import Problem, Submission, ProblemStatus
 from django.utils import timezone
 
 
-def load_hidden_test_cases():
-    """숨겨진 테스트 케이스 파일 로드"""
-    json_path = Path(__file__).parent / 'data' / 'hidden_test_cases.json'
-    with open(json_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
-
-
 def load_problem_json():
     """문제 JSON 파일 로드"""
-    json_path = Path(__file__).parent / 'data' / 'problems_final_cleaned.json'
+    json_path = Path(__file__).parent / 'data' / 'problems_final_output.json'
     with open(json_path, 'r', encoding='utf-8-sig') as f:
         return json.load(f)
 
@@ -145,17 +138,14 @@ def submit_code(request):
             'error': f'문제 ID {problem_id}를 찾을 수 없습니다.'
         }, status=status.HTTP_404_NOT_FOUND)
 
-    # 숨겨진 테스트 케이스 로드
-    hidden_test_data = load_hidden_test_cases()
-    test_data = next((t for t in hidden_test_data if t['problem_id'] == str(problem_id)), None)
+    # 숨겨진 테스트 케이스 로드 (problems_final_output.json에 포함된 데이터 사용)
+    hidden_test_cases = problem.get('hidden_test_cases', [])
 
-    if not test_data or not test_data.get('hidden_test_cases'):
+    if not hidden_test_cases:
         return Response({
             'success': False,
             'error': '이 문제에 대한 테스트 케이스가 없습니다.'
         }, status=status.HTTP_404_NOT_FOUND)
-
-    hidden_test_cases = test_data['hidden_test_cases']
 
     # 코드 실행 및 테스트
     executor = CodeExecutor(timeout=5)
@@ -254,8 +244,9 @@ def submit_code(request):
             'security_awareness': 3
         }
 
-    # 종합 점수 계산
-    total_score = calculate_total_score(static_metrics, llm_metrics)
+    # 종합 점수 계산 (맞춘 문제 수 / 총 문제 수 * 100, 반올림)
+    total_count = len(hidden_test_cases)
+    total_score = round((passed_count / total_count) * 100) if total_count > 0 else 0
 
     # DB에 제출 기록 저장
     try:

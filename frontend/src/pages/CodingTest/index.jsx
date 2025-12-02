@@ -16,7 +16,7 @@ function CodingTest() {
   const [loading, setLoading] = useState(false)
   const [customInputs, setCustomInputs] = useState([]) // 사용자가 추가한 입력들
   const [newInput, setNewInput] = useState('') // 새 입력 필드
-  const [outputMode, setOutputMode] = useState(1) // 1: 전체 출력, 2: 간단 출력
+  const [outputMode, setOutputMode] = useState(2) // 1: 전체 출력, 2: 간단 출력 (기본: 간단 출력)
   const [executionResults, setExecutionResults] = useState(null) // 다중 실행 결과
   const [hint, setHint] = useState('') // 힌트 응답
   const [hintLoading, setHintLoading] = useState(false) // 힌트 로딩 상태
@@ -504,7 +504,15 @@ function CodingTest() {
               defaultLanguage="python"
               theme="vs-dark"
               value={code}
-              onChange={(value) => setCode(value || '')}
+              onChange={(value) => {
+                const newCode = value || ''
+                setCode(newCode)
+                // 코드 변경 시 자동 저장 (사용자별, 문제별)
+                if (problemId && user) {
+                  const storageKey = `user_${user.id}_problem_${problemId}_code`
+                  localStorage.setItem(storageKey, newCode)
+                }
+              }}
               options={{
                 minimap: { enabled: false },
                 fontSize: 14,

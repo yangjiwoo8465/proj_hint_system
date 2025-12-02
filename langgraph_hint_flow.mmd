@@ -1,0 +1,64 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4a90d9', 'primaryTextColor': '#fff', 'primaryBorderColor': '#2d5986', 'lineColor': '#5c5c5c', 'secondaryColor': '#f0f0f0', 'tertiaryColor': '#fff'}}}%%
+
+flowchart TD
+    subgraph INIT["🚀 초기화"]
+        START([START]) --> INPUT[/"📥 input_node<br/>사용자 입력 수집<br/>(problem_id, user_code, preset, components)"/]
+    end
+
+    subgraph ANALYSIS["🔍 분석 단계"]
+        INPUT --> SOLUTION["🔎 solution_match_node<br/>솔루션 매칭<br/>(유사도 기반 정답 코드 매칭)"]
+        SOLUTION --> PURPOSE["🎯 purpose_node<br/>목적 결정<br/>(completion/optimization/optimal)"]
+        PURPOSE --> PARALLEL["⚡ parallel_analysis_node<br/>병렬 분석<br/>(정적분석 + LLM평가)"]
+    end
+
+    subgraph BRANCH["🌿 분기 결정"]
+        PARALLEL --> BRANCH_NODE{"🔀 branch_decision_node<br/>분기 결정 (A~F)"}
+
+        BRANCH_NODE -->|"A: 코드없음/문법오류"| SKIP_CHECK{should_skip_coh}
+        BRANCH_NODE -->|"B: 테스트 미통과"| SKIP_CHECK
+        BRANCH_NODE -->|"C: 첫 테스트 통과"| SKIP_CHECK
+        BRANCH_NODE -->|"D: 효율적 완성 필요"| SKIP_CHECK
+        BRANCH_NODE -->|"E1: 별 획득"| SKIP_CHECK
+        BRANCH_NODE -->|"E2: 품질 개선 필요"| SKIP_CHECK
+        BRANCH_NODE -->|"F: 최적 달성"| SKIP_CHECK
+    end
+
+    subgraph COH_SKIP["⏭️ 스킵 경로 (A, C, E1)"]
+        SKIP_CHECK -->|"skip<br/>(A, C, E1)"| SKIP_LLM["💬 skip_llm_node<br/>정적 메시지 반환<br/>(COH 계산 불필요)"]
+    end
+
+    subgraph COH_FLOW["🔄 COH 경로 (B, D, E2, F)"]
+        SKIP_CHECK -->|"continue<br/>(B, D, E2, F)"| COH_CHECK["📊 coh_check_node<br/>COH 깊이 계산<br/>(동일 코드 힌트 요청 횟수)"]
+        COH_CHECK --> COH_LEVEL["📈 coh_level_node<br/>힌트 레벨 결정<br/>(프리셋 + COH → 레벨 1-9)"]
+        COH_LEVEL --> COMPONENT["🧩 component_filter_node<br/>구성요소 필터링<br/>(프리셋별 제한 적용)"]
+    end
+
+    subgraph HINT_GEN["✨ 힌트 생성"]
+        COMPONENT --> PROMPT["📝 build_prompt_node<br/>프롬프트 구성<br/>(레벨별 상세도 조절)"]
+        PROMPT --> LLM["🤖 generate_hint_node<br/>LLM 힌트 생성<br/>(GPT-4 호출)"]
+        LLM --> FORMAT["🎨 format_hint_node<br/>최종 포맷팅<br/>(구성요소 삭제 없음!)"]
+    end
+
+    subgraph OUTPUT["💾 출력"]
+        SKIP_LLM --> SAVE["💾 save_node<br/>힌트 저장<br/>(HintRequest DB 저장)"]
+        FORMAT --> SAVE
+        SAVE --> END_NODE([END])
+    end
+
+    %% 스타일링
+    classDef initNode fill:#4a90d9,stroke:#2d5986,color:white
+    classDef analysisNode fill:#50c878,stroke:#3a9d5c,color:white
+    classDef branchNode fill:#f5a623,stroke:#d4890c,color:white
+    classDef skipNode fill:#9b9b9b,stroke:#7a7a7a,color:white
+    classDef cohNode fill:#9013fe,stroke:#6b0fc0,color:white
+    classDef hintNode fill:#e91e63,stroke:#c2185b,color:white
+    classDef outputNode fill:#00bcd4,stroke:#0097a7,color:white
+    classDef decisionNode fill:#ff9800,stroke:#f57c00,color:black
+
+    class START,INPUT initNode
+    class SOLUTION,PURPOSE,PARALLEL analysisNode
+    class BRANCH_NODE,SKIP_CHECK decisionNode
+    class SKIP_LLM skipNode
+    class COH_CHECK,COH_LEVEL,COMPONENT cohNode
+    class PROMPT,LLM,FORMAT hintNode
+    class SAVE,END_NODE outputNode

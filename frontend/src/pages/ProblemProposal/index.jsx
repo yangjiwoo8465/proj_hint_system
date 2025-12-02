@@ -222,7 +222,7 @@ const ProblemProposal = () => {
         </div>
 
         <div className="form-section">
-          <label>태그</label>
+          <label>분류</label>
           <div className="tags-input-container">
             <div className="tags-list">
               {formData.tags.map((tag, idx) => (
@@ -245,7 +245,7 @@ const ProblemProposal = () => {
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
-                placeholder="태그 입력 후 Enter 또는 추가 버튼 클릭"
+                placeholder="분류 입력 후 Enter 또는 추가 버튼 클릭"
               />
               <button type="button" className="add-tag-btn" onClick={handleAddTag}>
                 추가

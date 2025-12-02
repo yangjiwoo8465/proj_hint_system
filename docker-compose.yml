@@ -30,7 +30,6 @@ services:
       - ./backend:/app
       - static_volume:/app/staticfiles
       - media_volume:/app/media
-      - ./hint-system:/app/hint-system
     ports:
       - "8000:8000"
     env_file:

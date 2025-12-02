@@ -1,5 +1,5 @@
 """
-문제 데이터 검증 API - problems_with_hidden_tests.json 검증
+문제 데이터 검증 API - problems_final_output.json 검증
 """
 import json
 from pathlib import Path
@@ -11,15 +11,15 @@ from .code_executor import CodeExecutor
 
 
 def load_problems_with_tests():
-    """problems_with_hidden_tests.json 로드"""
-    json_path = Path(__file__).parent / 'data' / 'problems_with_hidden_tests.json'
+    """problems_final_output.json 로드"""
+    json_path = Path(__file__).parent / 'data' / 'problems_final_output.json'
     try:
         with open(json_path, 'r', encoding='utf-8-sig') as f:
             return json.load(f)
     except FileNotFoundError:
         return []
     except Exception as e:
-        print(f"Failed to load problems_with_hidden_tests.json: {str(e)}")
+        print(f"Failed to load problems_final_output.json: {str(e)}")
         return []
 
 

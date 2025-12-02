@@ -58,7 +58,7 @@ class ProblemDetailView(generics.RetrieveAPIView):
 
 def load_problems():
     """problems.json 파일 로드"""
-    problems_file = Path(__file__).parent / 'data' / 'problems_final_cleaned.json'
+    problems_file = Path(__file__).parent / 'data' / 'problems_final_output.json'
     try:
         with open(problems_file, 'r', encoding='utf-8-sig') as f:
             return json.load(f)

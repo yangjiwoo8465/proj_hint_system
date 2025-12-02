@@ -808,20 +808,20 @@
 }
 
 .bookmarks-section .bookmarks-header .back-btn {
-  background: #f0f0f0;
+  background: #333;
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 6px;
   font-size: 0.9rem;
   font-weight: 500;
-  color: #666;
+  color: white;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .bookmarks-section .bookmarks-header .back-btn:hover {
-  background: #e0e0e0;
-  color: #333;
+  background: #444;
+  color: white;
 }
 
 .bookmarks-section .bookmarks-header h2 {

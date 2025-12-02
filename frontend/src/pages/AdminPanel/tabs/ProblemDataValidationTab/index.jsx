@@ -142,7 +142,7 @@ const ProblemDataValidationTab = () => {
       <div className="validation-header">
         <h2>문제 데이터 검증</h2>
         <p className="description">
-          problems_with_hidden_tests.json 파일의 각 문제 데이터를 검증합니다.
+          problems_final_output.json 파일의 각 문제 데이터를 검증합니다.
           solution_code를 examples와 hidden_test_cases에 대해 실행하여 결과를 확인할 수 있습니다.
         </p>
       </div>

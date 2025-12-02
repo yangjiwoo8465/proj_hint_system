@@ -15,9 +15,8 @@ function Problems() {
     statusFilter: 'all', // 'all', 'in_progress', 'star_0', 'star_1', 'star_2', 'star_3'
     categories: [],
     levels: [],
-    tags: [],
   })
-  const [expandedSection, setExpandedSection] = useState('levels') // 'levels' or 'tags' - 기본으로 levels 열림
+  const [expandedSection, setExpandedSection] = useState('levels') // 'levels' or 'categories' - 기본으로 levels 열림
   const [bookmarkedProblems, setBookmarkedProblems] = useState([]) // 북마크된 문제 ID 목록
 
   useEffect(() => {
@@ -144,24 +143,6 @@ function Problems() {
     }))
   }
 
-  const handleTagChange = (tag) => {
-    setFilters(prev => ({
-      ...prev,
-      tags: prev.tags.includes(tag)
-        ? prev.tags.filter(t => t !== tag)
-        : [...prev.tags, tag]
-    }))
-  }
-
-  const handleSelectAllCategories = (e) => {
-    if (e.target.checked) {
-      const allCategories = [...new Set(problems.map(p => p.step_title).filter(Boolean))]
-      setFilters(prev => ({ ...prev, categories: allCategories }))
-    } else {
-      setFilters(prev => ({ ...prev, categories: [] }))
-    }
-  }
-
   const handleSearch = () => {
     // 검색 로직은 이미 filteredProblems에서 처리됨
   }
@@ -176,17 +157,44 @@ function Problems() {
     if (filters.statusFilter === 'star_2' && status !== 'star_2') return false
     if (filters.statusFilter === 'star_3' && status !== 'star_3') return false
 
-    const matchesCategory = filters.categories.length === 0 || filters.categories.includes(problem.step_title)
+    const matchesCategory = filters.categories.length === 0 || filters.categories.includes(problem.category)
     const matchesLevel = filters.levels.length === 0 || filters.levels.includes(problem.level)
-    const matchesTags = filters.tags.length === 0 || (problem.tags && filters.tags.some(tag => problem.tags.includes(tag)))
 
-    return matchesCategory && matchesLevel && matchesTags
+    return matchesCategory && matchesLevel
   })
 
-  const allCategories = [...new Set(problems.map(p => p.step_title).filter(Boolean))]
-
-  // 실제 문제 데이터에서 사용된 태그만 추출
-  const allTags = [...new Set(problems.flatMap(p => p.tags || []))].filter(Boolean).sort()
+  // 실제 문제 데이터에서 사용된 category 값만 추출 (어려움 순 정렬: 쉬운 것 → 어려운 것)
+  const categoryDifficultyOrder = [
+    '입출력/기초',
+    '수학',
+    '문자열',
+    '자료구조 (기본)',
+    '정렬',
+    '탐색',
+    '해시/맵',
+    '브루트포스/백트래킹',
+    '그리디',
+    'DP (동적계획법)',
+    '그래프 (기본)',
+    '분할정복',
+    '트리',
+    '자료구조 (고급)',
+    '기하학',
+    '그래프 (고급)',
+    '네트워크 플로우',
+    '게임 이론',
+    '고급 알고리즘',
+    '기타/특수'
+  ]
+  const allCategories = [...new Set(problems.map(p => p.category).filter(Boolean))].sort((a, b) => {
+    const indexA = categoryDifficultyOrder.indexOf(a)
+    const indexB = categoryDifficultyOrder.indexOf(b)
+    // 목록에 없는 카테고리는 맨 뒤로
+    if (indexA === -1 && indexB === -1) return a.localeCompare(b)
+    if (indexA === -1) return 1
+    if (indexB === -1) return -1
+    return indexA - indexB
+  })
 
   // 실제 문제 데이터에서 사용된 레벨만 추출
   const allLevels = [...new Set(problems.map(p => p.level))].filter(Boolean).sort((a, b) => a - b)
@@ -305,21 +313,21 @@ function Problems() {
         <div className="filter-row accordion-row">
           <div
             className="filter-label accordion-header"
-            onClick={() => setExpandedSection(expandedSection === 'tags' ? null : 'tags')}
+            onClick={() => setExpandedSection(expandedSection === 'categories' ? null : 'categories')}
           >
-            <span>소분류</span>
-            <span className={`accordion-icon ${expandedSection === 'tags' ? 'expanded' : ''}`}>▼</span>
+            <span>분류</span>
+            <span className={`accordion-icon ${expandedSection === 'categories' ? 'expanded' : ''}`}>▼</span>
           </div>
-          {expandedSection === 'tags' && (
+          {expandedSection === 'categories' && (
             <div className="filter-options filter-options-wrap accordion-content">
-              {allTags.map((tag, index) => (
+              {allCategories.map((category, index) => (
                 <label key={index} className="filter-checkbox">
                   <input
                     type="checkbox"
-                    checked={filters.tags.includes(tag)}
-                    onChange={() => handleTagChange(tag)}
+                    checked={filters.categories.includes(category)}
+                    onChange={() => handleCategoryChange(category)}
                   />
-                  {tag}
+                  {category}
                 </label>
               ))}
             </div>
@@ -369,7 +377,7 @@ function Problems() {
                   <td>{problem.problem_id}</td>
                   <td className="problem-title-cell">{problem.title}</td>
                   <td>{problem.level}</td>
-                  <td>{problem.step_title || '-'}</td>
+                  <td>{problem.category || '-'}</td>
                   <td>
                     <button
                       className="action-btn"

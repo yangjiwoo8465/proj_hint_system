@@ -189,9 +189,6 @@ CORS_ALLOW_CREDENTIALS = True
 CHROMA_DB_PATH = os.getenv('CHROMA_DB_PATH', str(BASE_DIR / 'vectordb' / 'chroma_data'))
 CHROMA_COLLECTION_NAME = os.getenv('CHROMA_COLLECTION_NAME', 'python_docs')
 
-# LLM Model Settings (기존 hint-system 연동)
-HINT_SYSTEM_PATH = os.getenv('HINT_SYSTEM_PATH', str(BASE_DIR.parent / 'hint-system'))
-
 # Code Execution Settings
 CODE_EXECUTION_TIMEOUT = int(os.getenv('CODE_EXECUTION_TIMEOUT', '5'))  # seconds
 CODE_EXECUTION_MAX_OUTPUT = int(os.getenv('CODE_EXECUTION_MAX_OUTPUT', '10000'))  # characters
