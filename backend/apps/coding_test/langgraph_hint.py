@@ -4,9 +4,14 @@ LangGraph 기반 힌트 시스템
 기존 API 방식(hint_api.py)과 병행하여 사용 가능한 LangGraph 기반 힌트 제공 시스템.
 그래프 기반으로 힌트 생성 워크플로우를 정의하고 실행합니다.
 
+실행 모드:
+- Local 모드: Django 서버 내에서 직접 LangGraph 실행
+- Runpod 모드: Runpod Serverless로 힌트 생성 위임 (무거운 LLM 연산 분리)
+
 사용법:
 - 기존 방식: POST /coding-test/hints/ (hint_api.request_hint)
 - LangGraph 방식: POST /coding-test/hints/langgraph/ (langgraph_hint.request_hint_langgraph)
+- 모드 전환: 환경변수 HINT_EXECUTION_MODE='runpod' 또는 'local' (기본: local)
 
 분기 로직 (A~F):
 - A: 문법 오류 있음 → 문법 수정 힌트
@@ -65,6 +70,11 @@ class HintState(TypedDict):
     custom_components: Dict[str, bool]  # 6개 구성요소 선택
     user_id: int
 
+    # solution_code 관련
+    solutions: List[Dict[str, Any]]  # 문제의 모든 솔루션 목록
+    matched_solution: Dict[str, Any]  # 사용자 코드와 가장 유사한 솔루션
+    solution_similarity: float  # 유사도 점수 (0-1)
+
     # 분석 결과 - 정적 메트릭 (6개)
     static_metrics: Dict[str, Any]
     # - syntax_errors: 문법 오류 수
@@ -99,6 +109,7 @@ class HintState(TypedDict):
     filtered_components: Dict[str, bool]  # COH 레벨로 필터링된 구성요소
     blocked_components: List[str]  # 차단된 구성요소 목록
     coh_status: Dict[str, Any]  # COH 상태 정보 (프론트엔드 전달용)
+    is_syntax_error: bool  # 문법 오류 플래그 (분기 A)
 
     # 힌트 생성
     llm_prompt: str
@@ -113,8 +124,8 @@ class HintState(TypedDict):
 # ==================== 노드 함수들 ====================
 
 def input_node(state: HintState) -> HintState:
-    """입력 검증 및 문제 정보 로드 노드"""
-    json_path = Path(__file__).parent / 'data' / 'problems_final_cleaned.json'
+    """입력 검증 및 문제 정보 로드 노드 (solutions 포함)"""
+    json_path = Path(__file__).parent / 'data' / 'problems_final_output.json'
 
     try:
         with open(json_path, 'r', encoding='utf-8-sig') as f:
@@ -125,10 +136,14 @@ def input_node(state: HintState) -> HintState:
         if problem:
             state['problem_title'] = problem.get('title', '')
             state['problem_description'] = problem.get('description', '')
+            # solutions 로드 (solution_code 기반 힌트용)
+            state['solutions'] = problem.get('solutions', [])
         else:
             state['error'] = f"문제 ID {state['problem_id']}를 찾을 수 없습니다."
+            state['solutions'] = []
     except Exception as e:
         state['error'] = f"문제 로드 실패: {str(e)}"
+        state['solutions'] = []
 
     return state
 
@@ -216,7 +231,7 @@ def llm_eval_node(state: HintState) -> HintState:
             return state
 
         client = OpenAI(api_key=ai_config.openai_api_key)
-        model_name = ai_config.model_name or 'gpt-4.1'
+        model_name = ai_config.model_name or 'gpt-5.1'
 
         eval_prompt = f"""당신은 코드 평가 전문가입니다. 아래 코드를 평가하고 JSON으로 응답하세요.
 
@@ -480,6 +495,155 @@ LEVEL_COMPONENTS = {
 }
 
 import hashlib
+import difflib
+
+def _compute_code_similarity(user_code: str, solution_code: str) -> float:
+    """
+    사용자 코드와 솔루션 코드의 유사도 계산 (0-1)
+
+    구조적 유사도를 측정하여 사용자의 접근 방식과 가장 비슷한 솔루션을 찾습니다.
+    """
+    # 코드 정규화 (공백, 주석 제거)
+    def normalize(code: str) -> List[str]:
+        lines = []
+        for line in code.strip().split('\n'):
+            # 주석 제거
+            if '#' in line:
+                line = line[:line.index('#')]
+            # 공백 정규화
+            line = ' '.join(line.split())
+            if line:
+                lines.append(line.lower())
+        return lines
+
+    user_lines = normalize(user_code)
+    solution_lines = normalize(solution_code)
+
+    if not user_lines or not solution_lines:
+        return 0.0
+
+    # SequenceMatcher로 유사도 계산
+    matcher = difflib.SequenceMatcher(None, user_lines, solution_lines)
+    return matcher.ratio()
+
+
+def _extract_code_patterns(code: str) -> set:
+    """
+    코드에서 주요 패턴 추출 (input 방식, 자료구조, 알고리즘 등)
+    """
+    patterns = set()
+    code_lower = code.lower()
+
+    # 입력 패턴
+    if 'map(int' in code_lower:
+        patterns.add('map_int_input')
+    if 'input().split()' in code_lower:
+        patterns.add('split_input')
+    if 'sys.stdin' in code_lower:
+        patterns.add('sys_stdin')
+
+    # 자료구조
+    if 'dict(' in code_lower or '{}' in code:
+        patterns.add('dict')
+    if 'set(' in code_lower:
+        patterns.add('set')
+    if 'deque' in code_lower:
+        patterns.add('deque')
+    if 'heapq' in code_lower or 'heap' in code_lower:
+        patterns.add('heap')
+
+    # 알고리즘 패턴
+    if 'def ' in code_lower:
+        patterns.add('function_defined')
+    if 'for ' in code_lower:
+        patterns.add('for_loop')
+    if 'while ' in code_lower:
+        patterns.add('while_loop')
+    if 'recursive' in code_lower or ('def ' in code_lower and code_lower.count('def ') < code_lower.count('return')):
+        patterns.add('recursion')
+    if 'sorted(' in code_lower or '.sort(' in code_lower:
+        patterns.add('sorting')
+    if 'bisect' in code_lower:
+        patterns.add('binary_search')
+
+    return patterns
+
+
+def _find_most_similar_solution(user_code: str, solutions: List[Dict[str, Any]]) -> tuple:
+    """
+    사용자 코드와 가장 유사한 솔루션을 찾습니다.
+
+    Returns:
+        tuple: (matched_solution, similarity_score)
+    """
+    if not solutions:
+        return None, 0.0
+
+    best_solution = None
+    best_score = 0.0
+
+    user_patterns = _extract_code_patterns(user_code)
+
+    for solution in solutions:
+        solution_code = solution.get('solution_code', '')
+        if not solution_code:
+            continue
+
+        # 1. 코드 유사도 (60% 가중치)
+        code_similarity = _compute_code_similarity(user_code, solution_code)
+
+        # 2. 패턴 유사도 (40% 가중치)
+        solution_patterns = _extract_code_patterns(solution_code)
+        if user_patterns or solution_patterns:
+            pattern_overlap = len(user_patterns & solution_patterns)
+            pattern_total = len(user_patterns | solution_patterns)
+            pattern_similarity = pattern_overlap / pattern_total if pattern_total > 0 else 0
+        else:
+            pattern_similarity = 0
+
+        # 최종 점수
+        total_score = (code_similarity * 0.6) + (pattern_similarity * 0.4)
+
+        if total_score > best_score:
+            best_score = total_score
+            best_solution = solution
+
+    return best_solution, best_score
+
+
+def solution_match_node(state: HintState) -> HintState:
+    """
+    사용자 코드와 가장 유사한 솔루션을 매칭하는 노드
+
+    이 노드는 사용자의 접근 방식을 존중하여,
+    가장 비슷한 솔루션을 기반으로 "다음 단계"를 안내합니다.
+    """
+    if state.get('error'):
+        return state
+
+    user_code = state.get('user_code', '').strip()
+    solutions = state.get('solutions', [])
+
+    if not user_code:
+        # 코드가 없으면 매칭 스킵
+        state['matched_solution'] = None
+        state['solution_similarity'] = 0.0
+        return state
+
+    if not solutions:
+        # 솔루션이 없으면 매칭 불가
+        state['matched_solution'] = None
+        state['solution_similarity'] = 0.0
+        return state
+
+    # 가장 유사한 솔루션 찾기
+    matched, similarity = _find_most_similar_solution(user_code, solutions)
+
+    state['matched_solution'] = matched
+    state['solution_similarity'] = similarity
+
+    return state
+
 
 def _compute_code_hash(code: str) -> str:
     """코드의 정규화된 해시 계산 (공백/주석 제거 후)"""
@@ -503,6 +667,7 @@ def coh_check_node(state: HintState) -> HintState:
     COH 체크 노드: 이전 힌트 기록을 확인하여 COH 깊이 계산
 
     플로우차트 기반 COH 결정 로직:
+    0. 분기 A(문법 오류)? → COH 증가 안 함, is_syntax_error=True
     1. 같은 분기? → 아니오 → COH 초기화 (depth=0)
     2. 문제 해결? → 예 → COH 초기화 (depth=0)
     3. 코드 변경? → 예 → COH 유지 (이전 depth)
@@ -524,6 +689,15 @@ def coh_check_node(state: HintState) -> HintState:
     # 프리셋별 최대 COH 깊이
     max_depth = COH_MAX_DEPTH.get(preset, 2)
     state['coh_max_depth'] = max_depth
+
+    # 분기 A(문법 오류)는 COH 증가 안 함 - 단순 문법 실수는 COH 소모하지 않음
+    if hint_branch == 'A':
+        state['coh_depth'] = 0
+        state['coh_decision'] = 'skip_syntax_error'
+        state['is_syntax_error'] = True  # 문법 오류 플래그
+        return state
+
+    state['is_syntax_error'] = False
 
     try:
         # 최근 힌트 기록 조회 (같은 문제, 같은 사용자, LangGraph 방식)
@@ -613,6 +787,7 @@ def component_filter_node(state: HintState) -> HintState:
     구성요소 필터링 노드: 힌트 레벨에 따라 허용되는 구성요소 필터링
 
     필터링 규칙:
+    - 분기 A(문법 오류): 모든 구성요소 비활성화 (summary만 출력)
     - 레벨 1-4: 모든 구성요소 허용
     - 레벨 5-6: libraries + always_allowed
     - 레벨 7-9: always_allowed만 (complexity_hint, edge_cases, improvements)
@@ -622,6 +797,28 @@ def component_filter_node(state: HintState) -> HintState:
 
     hint_level = state.get('hint_level', 7)
     custom_components = state.get('custom_components', {})
+    is_syntax_error = state.get('is_syntax_error', False)
+
+    # 분기 A(문법 오류)일 때는 구성요소 선택 무시 - summary만 출력
+    if is_syntax_error:
+        state['filtered_components'] = {}  # 모든 구성요소 비활성화
+        state['blocked_components'] = list(custom_components.keys())  # 모두 blocked로 표시
+
+        # COH 상태 정보 (문법 오류용)
+        preset = state.get('preset', '중급')
+        state['coh_status'] = {
+            'preset': preset,
+            'coh_depth': 0,
+            'max_depth': COH_MAX_DEPTH.get(preset, 2),
+            'hint_level': hint_level,
+            'level_name': f"{preset} (문법 오류)",
+            'allowed_components': [],
+            'blocked_components': list(custom_components.keys()),
+            'can_get_more_detailed': False,
+            'next_level_hint': "문법 오류를 수정한 후 다시 힌트를 요청하세요.",
+            'is_syntax_error': True
+        }
+        return state
 
     # 해당 레벨에서 허용되는 구성요소
     allowed_components = LEVEL_COMPONENTS.get(hint_level, ALWAYS_ALLOWED_COMPONENTS)
@@ -718,80 +915,618 @@ def _identify_weak_metrics(state: HintState) -> List[Dict[str, Any]]:
     return weak_metrics
 
 
+def _get_preset_rules(preset: str, hint_level: int = 7) -> str:
+    """
+    레벨별 힌트 작성 규칙 반환
+
+    hint_level 1-4: 초급 (구체적)
+    hint_level 5-7: 중급 (방향 제시)
+    hint_level 8-9: 고급 (질문 유도)
+    """
+
+    # 레벨별 세부 규칙
+    level_rules = {
+        1: """
+[레벨 1 - 거의 정답]
+★ 절대 규칙 ★
+- 전체 정답 코드를 제공해야 합니다
+- 모든 줄에 주석을 달아야 합니다
+- 빈칸 없이 완성된 코드를 제공하세요
+
+★ 필수 출력 ★
+- summary: 수정/다음단계 요약
+- code_example: 완성된 정답 코드 (주석 포함)
+- step_by_step: 모든 단계 상세 설명""",
+
+        2: """
+[레벨 2 - 매우 상세]
+★ 절대 규칙 ★
+- 90% 완성된 코드를 제공합니다
+- 핵심 부분 1-2군데만 빈칸(___)으로 남깁니다
+- 빈칸 옆에 강한 힌트 주석을 답니다
+
+★ 필수 출력 ★
+- summary: 현재 상태 + 해결 방향
+- code_example: 빈칸 1-2개가 있는 거의 완성된 코드
+- step_by_step: 단계별 설명 (코드 포함)""",
+
+        3: """
+[레벨 3 - 상세]
+★ 절대 규칙 ★
+- 핵심 코드 3-5줄만 제공합니다
+- 전체 코드는 제공하지 않습니다
+- 수정/추가 주석을 반드시 포함합니다
+
+★ 필수 출력 ★
+- summary: "Logic N 완료, 다음은 Logic N+1"
+- code_example: 핵심 부분 3-5줄 코드
+- step_by_step: 구체적 단계 설명""",
+
+        4: """
+[레벨 4 - 직접적]
+★ 절대 규칙 ★
+- 코드 구조(함수명, 변수명, 반복문)만 제공합니다
+- 핵심 로직은 "# TODO: ..." 로 표시합니다
+- 정답의 약 50% 정도만 코드로 제공합니다
+
+★ 필수 출력 ★
+- summary: 현재 상태 + 다음 작업
+- code_example: 구조 + TODO 주석 코드
+- step_by_step: 단계별 방향 설명""",
+
+        5: """
+[레벨 5 - 개념+상세]
+★ 절대 규칙 ★
+- 실제 Python 코드를 제공하지 않습니다!!!
+- 의사코드(pseudocode)로만 설명합니다
+- 알고리즘/자료구조 이름을 명시합니다
+
+★ 필수 출력 ★
+- summary: 알고리즘/접근법 설명
+- step_by_step: 의사코드 형태 설명
+- complexity_hint: 목표 복잡도
+- code_example: 제공하지 않음!!!""",
+
+        6: """
+[레벨 6 - 개념적]
+★ 절대 규칙 ★
+- 코드를 절대 제공하지 않습니다!!!
+- 알고리즘/자료구조 이름만 언급합니다
+- 구현 방법은 설명하지 않습니다
+
+★ 필수 출력 ★
+- summary: 핵심 개념 1-2문장
+- step_by_step: 개념 수준 단계 (코드 없이)
+- code_example: 제공하지 않음!!!""",
+
+        7: """
+[레벨 7 - 추상적]
+★ 절대 규칙 ★
+- 코드를 절대 제공하지 않습니다!!!
+- 알고리즘/자료구조 이름도 언급하지 않습니다
+- "~를 고려해보세요" 형태로 방향만 제시합니다
+
+★ 필수 출력 ★
+- summary: 방향 제시 1-2문장
+- step_by_step: 추상적 단계 (개념 이름 없이)
+- code_example: 제공하지 않음!!!""",
+
+        8: """
+[레벨 8 - 방향 제시]
+★ 절대 규칙 ★
+- 코드를 절대 제공하지 않습니다!!!
+- 키워드 1-2개만 제시합니다
+- 적용 방법은 설명하지 않습니다
+- 학생이 검색해서 스스로 학습하도록 유도합니다
+
+★ 필수 출력 ★
+- summary: 키워드 1-2개 + 짧은 방향
+- step_by_step: 제공하지 않음
+- code_example: 제공하지 않음!!!""",
+
+        9: """
+[레벨 9 - 소크라테스식]
+★ 절대 규칙 ★
+- 코드를 절대 제공하지 않습니다!!!
+- 알고리즘 이름을 절대 언급하지 않습니다!!!
+- 오직 질문만 제시합니다
+- 질문은 1-2개로 제한합니다
+- 답변, 설명, 힌트를 주지 않습니다
+
+★ 필수 출력 ★
+- summary: 유도 질문 1-2개만 (답변 없이!!!)
+- step_by_step: 제공하지 않음
+- code_example: 제공하지 않음!!!"""
+    }
+
+    return level_rules.get(hint_level, level_rules[7])
+
+
+def _build_json_schema(custom_components: Dict[str, bool], preset: str, hint_level: int = 7) -> str:
+    """
+    선택된 구성요소에 따라 JSON 응답 스키마를 생성합니다.
+    LLM이 어떤 필드를 출력해야 하는지 명확하게 지정합니다.
+    """
+    # 레벨에 따라 summary 설명 변경
+    if hint_level == 8:
+        summary_schema = '"summary": "완전한 문장 (예: 이 문제는 ~하는 방식을 고려해볼 수 있습니다.)"'
+    elif hint_level == 9:
+        summary_schema = '"summary": "완전한 질문 문장 (예: ~은 어떻게 처리하면 좋을까요?)"'
+    else:
+        summary_schema = '"summary": "힌트 요약 (필수)"'
+
+    schema_parts = [summary_schema]
+
+    component_schemas = {
+        'libraries': '"libraries": ["라이브러리1", "라이브러리2"]',
+        'code_example': '"code_example": "코드 예시 (문자열, 줄바꿈은 \\\\n)"',
+        'step_by_step': '"step_by_step": ["1단계: ...", "2단계: ..."]',
+        'complexity_hint': '"complexity_hint": "시간/공간 복잡도 힌트"',
+        'edge_cases': '"edge_cases": ["엣지케이스1", "엣지케이스2"]',
+        'improvements': '"improvements": ["개선사항1", "개선사항2"]'
+    }
+
+    for comp, selected in custom_components.items():
+        if selected and comp in component_schemas:
+            schema_parts.append(component_schemas[comp])
+
+    schema = ",\n    ".join(schema_parts)
+
+    return f"""[필수 JSON 응답 형식]
+반드시 아래 형식으로 응답하세요. 선택된 모든 필드를 포함해야 합니다:
+```json
+{{
+    {schema}
+}}
+```"""
+
+
+# ==================== LLM 자기검증 함수 ====================
+
+def _verify_hint(
+    hint_content: Dict[str, Any],
+    hint_level: int,
+    filtered_components: Dict[str, bool],
+    preset: str,
+    ai_config: Any = None
+) -> Dict[str, Any]:
+    """
+    LLM 기반 힌트 자기검증
+
+    생성된 힌트가 레벨별 규칙을 준수하는지 검증합니다.
+
+    Args:
+        hint_content: 생성된 힌트 내용
+        hint_level: 힌트 레벨 (1-9)
+        filtered_components: 필터링된 구성요소
+        preset: 프리셋 ('초급', '중급', '고급')
+        ai_config: AIModelConfig 객체 (로컬 환경용)
+
+    Returns:
+        {
+            "is_valid": bool,
+            "feedback": str,
+            "issues": List[str]
+        }
+    """
+    # ai_config가 없으면 가져오기
+    if ai_config is None:
+        ai_config = AIModelConfig.get_config()
+
+    if ai_config.mode != 'openai' or not ai_config.openai_api_key:
+        # API 없으면 검증 스킵
+        return {"is_valid": True, "feedback": "", "issues": []}
+
+    if not OPENAI_AVAILABLE:
+        return {"is_valid": True, "feedback": "", "issues": []}
+
+    # 레벨별 검증 기준
+    level_criteria = {
+        1: "전체 정답 코드가 주석과 함께 제공되어야 합니다. 빈칸 없이 완성된 코드여야 합니다.",
+        2: "90% 완성된 코드에 1-2개의 빈칸(___)이 있어야 합니다. 빈칸 옆에 힌트 주석이 있어야 합니다.",
+        3: "핵심 코드 3-5줄만 제공되어야 합니다. 전체 코드는 제공되면 안 됩니다.",
+        4: "코드 구조와 TODO 주석만 제공되어야 합니다. 정답의 약 50%만 코드로 제공되어야 합니다.",
+        5: "실제 Python 코드가 있으면 안 됩니다. 의사코드로만 설명해야 합니다. 알고리즘/자료구조 이름은 명시해야 합니다.",
+        6: "코드가 있으면 안 됩니다. 알고리즘/자료구조 이름만 언급해야 합니다. 구현 방법은 설명하면 안 됩니다.",
+        7: "코드가 있으면 안 됩니다. 알고리즘/자료구조 이름도 언급하면 안 됩니다. 방향만 제시해야 합니다.",
+        8: "코드가 있으면 안 됩니다. 키워드 1-2개만 제시해야 합니다. 적용 방법은 설명하면 안 됩니다.",
+        9: "코드가 있으면 안 됩니다. 알고리즘 이름이 있으면 안 됩니다. 오직 유도 질문 1-2개만 있어야 합니다."
+    }
+
+    criterion = level_criteria.get(hint_level, level_criteria[7])
+    hint_json = json.dumps(hint_content, ensure_ascii=False, indent=2)
+
+    verify_prompt = f"""당신은 코딩 힌트 품질 검증 전문가입니다.
+
+[검증 대상 힌트]
+```json
+{hint_json}
+```
+
+[힌트 레벨]: {hint_level}/9 ({preset})
+
+[레벨 {hint_level} 검증 기준]
+{criterion}
+
+[검증 규칙]
+{_get_preset_rules(preset, hint_level)}
+
+위 힌트가 레벨 {hint_level}의 규칙을 준수하는지 검증하세요.
+
+JSON으로 응답하세요:
+{{
+    "is_valid": true/false,
+    "issues": ["문제점1", "문제점2", ...],
+    "feedback": "수정 지침 (is_valid가 false일 때만)"
+}}
+
+검증 시 확인사항:
+1. code_example이 레벨 규칙에 맞는 상세도인가?
+2. step_by_step이 너무 구체적이거나 추상적이지 않은가?
+3. main_hint가 레벨에 맞는 형식인가?
+4. 레벨 5-9에서 실제 Python 코드가 포함되어 있지 않은가?"""
+
+    try:
+        client = OpenAI(api_key=ai_config.openai_api_key)
+        model_name = ai_config.model_name or 'gpt-5.1'
+
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": "당신은 힌트 품질 검증 전문가입니다. JSON 형식으로만 응답하세요."},
+                {"role": "user", "content": verify_prompt}
+            ],
+            temperature=0.2,
+            max_tokens=500
+        )
+
+        response_text = response.choices[0].message.content.strip()
+
+        # JSON 추출
+        if '```json' in response_text:
+            response_text = response_text.split('```json')[1].split('```')[0]
+        elif '```' in response_text:
+            response_text = response_text.split('```')[1].split('```')[0]
+
+        result = json.loads(response_text)
+        return {
+            "is_valid": result.get("is_valid", True),
+            "feedback": result.get("feedback", ""),
+            "issues": result.get("issues", [])
+        }
+
+    except Exception as e:
+        # 검증 실패 시 통과 처리 (힌트 생성 자체는 유지)
+        return {"is_valid": True, "feedback": "", "issues": []}
+
+
 def build_prompt_node(state: HintState) -> HintState:
-    """프롬프트 구성 노드 (COH 레벨 반영)"""
+    """
+    프롬프트 구성 노드 (9단계 COH 레벨 반영)
+
+    레벨별 힌트 스타일 (모든 레벨에서 "다음 단계 코드만" 제공):
+    - 레벨 1 (초급 COH3): 거의 정답 - 다음 단계 3-5줄 + 주석
+    - 레벨 2 (초급 COH2): 매우 상세 - 다음 단계 3-5줄 + 빈칸 1개
+    - 레벨 3 (초급 COH1): 상세 - 다음 단계 2-3줄
+    - 레벨 4 (초급 기본): 직접적 - 코드 구조 + TODO
+    - 레벨 5 (중급 COH2): 개념+상세 - 의사코드
+    - 레벨 6 (중급 COH1): 개념적 - 알고리즘명만
+    - 레벨 7 (중급 기본): 추상적 - 방향만
+    - 레벨 8 (고급 COH1): 방향 제시 - 문장으로
+    - 레벨 9 (고급 기본): 소크라테스식 - 질문만
+    """
     if state.get('error'):
         return state
 
     preset = state.get('preset', '중급')
-    # COH로 필터링된 구성요소 사용 (없으면 원본 사용)
     custom_components = state.get('filtered_components', state.get('custom_components', {}))
     purpose_context = state.get('purpose_context', '')
     previous_hints = state.get('previous_hints', [])
     hint_level = state.get('hint_level', 7)
     coh_depth = state.get('coh_depth', 0)
 
-    # COH 레벨에 따른 힌트 스타일 결정
-    # 레벨 1-2: 거의 정답 수준
-    # 레벨 3-4: 직접적 힌트
-    # 레벨 5-6: 개념적 힌트
-    # 레벨 7-8: 추상적 힌트
-    # 레벨 9: 소크라테스식 질문
+    # 매칭된 솔루션 정보
+    matched_solution = state.get('matched_solution')
+    solution_similarity = state.get('solution_similarity', 0)
+    solution_code = matched_solution.get('solution_code', '') if matched_solution else ''
 
-    if hint_level <= 2:
-        level_instruction = f"""
-[힌트 레벨: {hint_level}/9 - 매우 상세 (COH{coh_depth})]
-- 거의 정답에 가까운 상세한 설명을 제공하세요
-- 사용할 함수명, 라이브러리명, 구체적인 로직을 설명하세요
-- 코드 구조와 흐름을 단계별로 자세히 안내하세요
-- 학생이 따라 작성할 수 있을 정도로 구체적으로 설명하세요
-"""
-    elif hint_level <= 4:
-        level_instruction = f"""
-[힌트 레벨: {hint_level}/9 - 직접적 ({preset})]
-- 직접적으로 설명해주세요
-- 사용할 함수명, 라이브러리명을 언급해도 됩니다
-- 구체적인 예시를 들어주세요
-- 정답 코드 전체를 제공하지는 마세요
-"""
-    elif hint_level <= 6:
-        level_instruction = f"""
-[힌트 레벨: {hint_level}/9 - 개념적 ({preset} COH{coh_depth if coh_depth > 0 else '기본'})]
-- 개념적으로 설명해주세요
-- 자료구조, 알고리즘 개념으로 힌트를 제공하세요
-- 구체적인 코드는 제공하지 마세요
-- 방향만 제시하고 학생이 스스로 구현하게 하세요
-"""
-    elif hint_level <= 8:
-        level_instruction = f"""
-[힌트 레벨: {hint_level}/9 - 추상적 ({preset})]
-- 높은 수준의 개념만 언급하세요
-- 구체적인 구현 방법은 제시하지 마세요
-- "~를 생각해보세요" 형태로 방향만 제시하세요
-"""
-    else:  # 레벨 9
-        level_instruction = f"""
-[힌트 레벨: {hint_level}/9 - 소크라테스식 (고급)]
-- 직접적인 답을 주지 마세요
-- 질문 형태로 힌트를 제공하세요
-- "이 문제에서 중복을 피하려면 어떤 자료구조가 적합할까요?" 같은 형태
-- 학생이 스스로 답을 찾아가도록 유도하세요
-"""
+    # ==================== 9단계 레벨별 프롬프트 ====================
 
-    # 선택된 구성요소
-    components_instruction = """
+    # 문법 오류 여부 확인
+    is_syntax_error = state.get('is_syntax_error', False)
+    syntax_errors = state.get('static_metrics', {}).get('syntax_errors', 0)
+
+    level_instructions = {
+        1: f"""
+[레벨 1/9 - 거의 정답 (초급 COH3)]
+
+★ "다음 단계"의 정의 (최우선 규칙) ★
+반드시 "오직 한 가지 작업만" 안내하세요!
+
+1. solution_code와 user_code를 비교하세요
+2. user_code에서 이미 구현된 부분을 파악하세요
+3. solution_code에서 user_code 바로 다음에 오는 "한 가지 작업"만 찾으세요
+4. 그 "한 가지 작업"에 해당하는 코드만 제공하세요
+
+예를 들어 solution_code가:
+  1. 입력 받기
+  2. 보드 저장하기
+  3. 패턴 비교하기
+  4. 결과 출력하기
+이고, user_code가 "1. 입력 받기"까지 완료했다면:
+→ "2. 보드 저장하기"에 해당하는 코드만 제공 (3, 4번은 제공하지 않음!)
+
+⛔ 잘못된 예 (두 가지 이상 언급 - 절대 금지!):
+- "정수로 변환하고, 보드를 저장해야 합니다" ← 금지!
+- "입력을 받고 리스트에 저장하세요" ← 금지!
+- "N을 읽고, 보드 데이터를 만들어야 합니다" ← 금지!
+
+✅ 올바른 예 (오직 한 가지만 언급):
+- "정수로 변환하면 됩니다"
+- "보드를 저장하면 됩니다"
+- "N을 읽으면 됩니다"
+
+★ 출력 형식 ★
+- summary: "현재 [완료된 부분]. 다음으로 [오직 한 가지 작업만]을 하면 됩니다."
+- code_example: 그 한 가지 작업에 해당하는 코드 (주석 포함)
+- step_by_step: 이 코드가 무엇을 하는지 설명
+
+예시 (좋은 예):
+```python
+# 다음 단계: 체스판 데이터를 저장
+board = []
+for _ in range(N):
+    board.append(input())
+```
+""",
+
+        2: f"""
+[레벨 2/9 - 매우 상세 (초급 COH2)]
+
+★ "다음 단계"의 정의 (최우선 규칙) ★
+반드시 "오직 한 가지 작업만" 안내하세요!
+
+1. solution_code와 user_code를 비교하세요
+2. user_code에서 이미 구현된 부분을 파악하세요
+3. solution_code에서 user_code 바로 다음에 오는 "한 가지 작업"만 찾으세요
+4. 그 "한 가지 작업"의 코드에서 핵심 1군데를 빈칸(___)으로 만드세요
+
+⛔ 잘못된 예 (두 가지 이상 언급 - 절대 금지!):
+- "정수로 변환하고, 보드를 저장해야 합니다" ← 금지!
+- "입력을 받고 리스트에 저장하세요" ← 금지!
+
+✅ 올바른 예 (오직 한 가지만 언급):
+- "정수로 변환해야 합니다. 빈칸을 채워보세요."
+- "보드를 저장해야 합니다. 빈칸을 채워보세요."
+
+★ 출력 형식 ★
+- summary: "현재 [상태]. [오직 한 가지 작업만]이 필요합니다. 빈칸을 채워보세요."
+- code_example: 빈칸 1개가 있는 다음 단계 코드
+- step_by_step: 각 줄 설명
+
+예시 (좋은 예):
+```python
+# 다음 단계: 체스판 데이터를 저장
+board = []
+for _ in range(___):  # 힌트: 몇 줄?
+    board.append(input())
+```
+""",
+
+        3: f"""
+[레벨 3/9 - 상세 (초급 COH1)]
+
+★ "다음 단계"의 정의 (최우선 규칙) ★
+반드시 "오직 한 가지 작업만" 안내하세요!
+
+1. user_code 다음에 해야 할 "한 가지 작업"을 파악
+2. 그 작업의 핵심 코드 2-3줄만 제공
+
+⛔ 잘못된 예 (두 가지 이상 언급 - 절대 금지!):
+- "입력을 정수로 바꾸고, 리스트에 저장하세요" ← 금지!
+
+✅ 올바른 예 (오직 한 가지만 언급):
+- "입력을 정수로 바꾸면 됩니다"
+- "리스트에 저장하면 됩니다"
+
+★ 출력 형식 ★
+- summary: "[완료된 부분]은 잘 되었습니다. 이제 [오직 한 가지 작업만]을 해보세요."
+- code_example: 핵심 코드 2-3줄만
+- step_by_step: 작업 방향
+
+예시: `board = [input() for _ in range(N)]`
+""",
+
+        4: f"""
+[레벨 4/9 - 직접적 (초급 기본)]
+
+★ "다음 단계"의 정의 (최우선 규칙) ★
+반드시 "오직 한 가지 작업만" 안내하세요!
+
+1. user_code 다음에 해야 할 "한 가지 작업"을 파악
+2. 그 작업의 구조만 제시 (TODO로 표시)
+
+⛔ 잘못된 예 (두 가지 이상 언급 - 절대 금지!):
+- "크기를 입력받고, 보드 데이터를 저장하세요" ← 금지!
+
+✅ 올바른 예 (오직 한 가지만 언급):
+- "크기를 입력받으세요"
+- "보드 데이터를 저장하세요"
+
+★ 출력 형식 ★
+- summary: 현재 상태 + 다음에 해야 할 오직 한 가지 작업만
+- code_example: 구조 + TODO
+- step_by_step: 구현 방향
+
+예시:
+```python
+board = []
+# TODO: N번 반복하며 각 줄을 입력받아 board에 추가
+```
+""",
+
+        5: f"""
+[레벨 5/9 - 개념+상세 (중급 COH2)]
+
+★ 분석 (순서대로 확인) ★
+1. user_code에 문법 오류가 있는가? (syntax_errors: {syntax_errors}개)
+   → 문법 오류 있으면: "N번 줄에서 문법을 확인해보세요. [구체적 힌트]" 형태
+2. solution_code와 비교하여 로직 오류가 있는가?
+   → 로직 오류 있으면: 의사코드로 올바른 흐름 설명
+3. 둘 다 정상이면 → 다음 단계 의사코드 제공
+
+★ 힌트 작성 규칙 ★
+- 의사코드(pseudocode)로 알고리즘 흐름을 설명하세요
+- 실제 Python 코드는 제공하지 마세요
+- 알고리즘 이름, 자료구조 이름을 명시하세요
+- 문법 오류 시: "출력 함수의 철자를 확인해보세요" 형태로 유도
+
+★ 출력 형식 ★
+- summary: 사용할 알고리즘/접근법 설명 (문장 형태)
+- step_by_step: 의사코드 형태의 단계 설명
+- code_example: 제공하지 않음
+""",
+
+        6: f"""
+[레벨 6/9 - 개념적 (중급 COH1)]
+
+★ 분석 (순서대로 확인) ★
+1. user_code에 문법 오류가 있는가? (syntax_errors: {syntax_errors}개)
+   → 문법 오류 있으면: "코드에서 함수/변수명을 다시 확인해보세요" 형태
+2. user_code의 접근법이 올바른지 확인
+   → 방향이 틀리면: 올바른 개념 제시
+3. 방향이 맞으면 → 다음 단계 개념 제시
+
+★ 힌트 작성 규칙 ★
+- 알고리즘/자료구조 이름만 언급하세요
+- 구체적인 구현 방법은 설명하지 마세요
+- 문법 오류 시: 코드 제공 없이 확인할 부분만 문장으로 안내
+
+★ 출력 형식 ★
+- summary: 핵심 개념 1-2문장 (완전한 문장으로)
+- step_by_step: 개념 수준의 단계
+- code_example: 제공하지 않음
+""",
+
+        7: f"""
+[레벨 7/9 - 추상적 (중급 기본)]
+
+★ 분석 (순서대로 확인) ★
+1. user_code에 문법 오류가 있는가? (syntax_errors: {syntax_errors}개)
+   → 문법 오류 있으면: "코드의 기본 구조를 다시 확인해보세요" 형태
+2. user_code의 방향이 맞는지만 확인
+   → 방향이 틀리면: 올바른 방향 제시 (추상적으로)
+3. 방향이 맞으면 → 다음 고려사항 제시
+
+★ 힌트 작성 규칙 ★
+- 구체적인 알고리즘/자료구조 이름을 언급하지 마세요
+- "~를 고려해보세요", "~에 집중해보세요" 형태의 완전한 문장
+- 문법 오류 시: 추상적으로 확인 방향만 제시
+
+★ 출력 형식 ★
+- summary: 방향 제시 1-2문장 (완전한 문장으로)
+- step_by_step: 추상적 단계
+- code_example: 제공하지 않음
+""",
+
+        8: f"""
+[레벨 8/9 - 방향 제시 (고급 COH1)]
+
+★ summary 작성 규칙 (최우선) ★
+summary는 반드시 아래 형식의 완전한 문장으로 작성하세요:
+- "이 문제는 ~하는 방식을 고려해볼 수 있습니다."
+- "~하는 방법을 생각해보세요."
+- "~에 집중해보시면 좋겠습니다."
+
+⛔ 잘못된 예 (키워드 나열 - 절대 금지!):
+- "부분 보드, 패턴 비교를 생각해보세요." ← 금지! (키워드 나열)
+- "브루트포스, 완전탐색을 고려해보세요." ← 금지! (키워드 나열)
+- "DFS, BFS를 사용해보세요." ← 금지! (키워드 나열)
+
+✅ 올바른 예 (설명적인 완전한 문장):
+- "이 문제는 주어진 보드에서 특정 크기의 영역을 하나씩 확인하는 방식을 고려해볼 수 있습니다."
+- "원본과 목표를 비교하여 다른 부분을 찾는 방법을 생각해보세요."
+- "모든 가능한 위치를 순회하며 조건을 확인하는 접근법이 있습니다."
+
+★ 출력 형식 ★
+- summary: 위 형식의 설명적인 완전한 문장 1-2개 (키워드 나열 금지!)
+- step_by_step: 제공하지 않음
+- code_example: 제공하지 않음
+""",
+
+        9: f"""
+[레벨 9/9 - 소크라테스식 (고급 기본)]
+
+★ summary 작성 규칙 (최우선) ★
+summary는 반드시 아래 형식의 완전한 질문 문장으로 작성하세요:
+- "~은(는) 어떻게 처리하면 좋을까요?"
+- "~을(를) 고려해보셨나요?"
+- "현재 코드에서 ~하는 부분은 어디인가요?"
+
+예시:
+- "현재 코드에서 반복적으로 수행해야 하는 작업은 무엇일까요?"
+- "입력을 어떤 형태로 저장하면 좋을지 생각해보셨나요?"
+- "두 패턴이 같은지 어떻게 확인할 수 있을까요?"
+
+★ 출력 형식 ★
+- summary: 위 형식의 완전한 질문 문장 1-2개
+- step_by_step: 제공하지 않음
+- code_example: 제공하지 않음
+"""
+    }
+
+    # 레벨에 해당하는 지시문 선택
+    level_instruction = level_instructions.get(hint_level, level_instructions[7])
+
+    # 선택된 구성요소 - 레벨에 따라 summary 설명 변경
+    if hint_level == 8:
+        components_instruction = """
+[응답에 포함할 항목]
+- summary: 완전한 문장으로 방향 제시 (예: "이 문제는 ~하는 방식을 고려해볼 수 있습니다.")
+"""
+    elif hint_level == 9:
+        components_instruction = """
+[응답에 포함할 항목]
+- summary: 완전한 질문 문장 (예: "~은 어떻게 처리하면 좋을까요?")
+"""
+    else:
+        components_instruction = """
 [응답에 포함할 항목]
 - summary: 힌트 요약 (필수, 위 레벨에 맞게)
 """
 
-    component_descriptions = {
-        'libraries': '- libraries: 사용하면 좋은 라이브러리 목록 (리스트)',
-        'code_example': '- code_example: 참고할 코드 예시 (문자열, 5-10줄의 실행 가능한 Python 코드. 리스트가 아닌 단일 문자열로 작성)',
-        'step_by_step': '- step_by_step: 단계별 해결 방법 (리스트)',
-        'complexity_hint': '- complexity_hint: 시간/공간 복잡도 힌트',
-        'edge_cases': '- edge_cases: 고려해야 할 엣지 케이스 목록',
-        'improvements': '- improvements: 현재 코드 개선점 (리스트)',
-    }
+    # 프리셋별 구성요소 설명 (본분은 유지, 상세도만 다름)
+    # 초급: 구체적 (코드, 줄 번호 등 직접 제시)
+    # 중급: 방향 제시 (무엇을 해야 하는지만)
+    # 고급: 질문으로 유도 (스스로 찾도록)
+
+    if preset == '초급':
+        component_descriptions = {
+            'libraries': '- libraries: 사용하면 좋은 라이브러리 목록과 각 라이브러리의 용도 설명 (리스트)',
+            'code_example': '- code_example: **학생의 현재 코드를 기반으로** 수정/보완한 코드 예시 (문자열, 5-10줄). 학생 코드의 구조와 변수명을 유지하고, 수정된 부분에 "# 수정: ..." 주석을 달아주세요. 학생 코드와 무관한 새로운 코드를 작성하지 마세요.',
+            'step_by_step': '- step_by_step: **학생의 현재 코드에서 부족한 부분**을 기반으로 한 단계별 해결 방법 (리스트). 예: "1단계: 1번 줄의 `m, n = input().split()`을 `m, n = map(int, input().split())`로 수정하세요" 처럼 구체적인 코드까지 포함하세요.',
+            'complexity_hint': '- complexity_hint: 시간/공간 복잡도와 그 이유를 구체적으로 설명',
+            'edge_cases': '- edge_cases: **학생의 현재 코드에서 처리되지 않은** 엣지 케이스 목록. 예: "입력이 0일 때 1번 줄에서 에러 발생" 처럼 학생 코드의 어느 부분이 어떤 입력에서 실패하는지 구체적으로 안내하세요.',
+            'improvements': '- improvements: **학생의 현재 코드에서 개선할 수 있는 부분** (리스트). 예: "3번 줄의 for문을 리스트 컴프리헨션으로 변경" 처럼 줄 번호와 수정 방법을 구체적으로 언급하세요.',
+        }
+    elif preset == '중급':
+        component_descriptions = {
+            'libraries': '- libraries: 사용하면 좋은 라이브러리 목록 (리스트, 용도는 생략)',
+            'code_example': '- code_example: 사용 불가 (중급에서는 코드 예시 제공 안 함)',  # 실제로는 차단됨
+            'step_by_step': '- step_by_step: **학생의 현재 코드에서 부족한 부분**을 기반으로 한 단계별 해결 방법 (리스트). 예: "1단계: 입력값을 정수로 변환하세요", "2단계: 2차원 리스트로 보드를 저장하세요" 처럼 무엇을 해야 하는지 방향만 제시하고 코드는 주지 마세요.',
+            'complexity_hint': '- complexity_hint: 목표 시간/공간 복잡도만 언급 (이유는 생략)',
+            'edge_cases': '- edge_cases: **학생의 현재 코드에서 처리되지 않은** 엣지 케이스 목록. 예: "빈 입력 처리", "음수 입력" 처럼 어떤 케이스를 고려해야 하는지만 안내하세요.',
+            'improvements': '- improvements: **학생의 현재 코드에서 개선할 수 있는 부분** (리스트). 예: "입력 처리 부분 개선 필요", "반복문 효율성 확인" 처럼 영역만 언급하고 구체적인 수정 방법은 생략하세요.',
+        }
+    else:  # 고급
+        component_descriptions = {
+            'libraries': '- libraries: 사용 불가 (고급에서는 라이브러리 힌트 제공 안 함)',  # 실제로는 차단됨
+            'code_example': '- code_example: 사용 불가 (고급에서는 코드 예시 제공 안 함)',  # 실제로는 차단됨
+            'step_by_step': '- step_by_step: 사용 불가 (고급에서는 단계별 방법 제공 안 함)',  # 실제로는 차단됨
+            'complexity_hint': '- complexity_hint: "효율성을 생각해보세요" 형태로 질문으로 유도',
+            'edge_cases': '- edge_cases: **학생의 현재 코드를 기반으로** 질문 형태로 안내. 예: "모든 입력 범위를 고려했나요?", "예외 상황은 없을까요?" 처럼 스스로 생각하도록 유도하세요.',
+            'improvements': '- improvements: **학생의 현재 코드를 기반으로** 질문 형태로 안내. 예: "더 간결하게 작성할 수 있을까요?", "이 부분이 최선일까요?" 처럼 스스로 개선점을 찾도록 유도하세요.',
+        }
 
     for comp, desc in component_descriptions.items():
         if custom_components.get(comp, False):
@@ -819,8 +1554,50 @@ def build_prompt_node(state: HintState) -> HintState:
 위 힌트들과 중복되지 않는 새로운 관점의 힌트를 제공해주세요.
 """
 
-    prompt = f"""당신은 코딩 테스트 힌트를 제공하는 AI 튜터입니다.
+    # 매칭된 솔루션 정보 구성
+    matched_solution = state.get('matched_solution')
+    solution_similarity = state.get('solution_similarity', 0)
 
+    solution_context = ""
+    if matched_solution and solution_similarity > 0.1:
+        solution_code = matched_solution.get('solution_code', '')
+        solution_approach = matched_solution.get('approach', '')
+        solution_description = matched_solution.get('description', '')
+
+        solution_context = f"""
+[참고 솔루션 - 학생의 접근 방식과 가장 유사한 정답 코드]
+유사도: {solution_similarity:.0%}
+{f'접근 방식: {solution_approach}' if solution_approach else ''}
+{f'설명: {solution_description}' if solution_description else ''}
+```python
+{solution_code[:1500]}
+```
+
+⚠️ 중요: 위 솔루션은 학생의 접근 방식과 가장 비슷한 정답입니다.
+- 학생의 현재 코드가 "틀렸다"고 하지 마세요
+- 학생의 코드에서 "다음 단계로 무엇을 해야 하는지" 안내하세요
+- 학생의 코드 구조와 변수명을 존중하면서 힌트를 제공하세요
+- code_example은 반드시 위 솔루션을 참고하여 학생 코드 스타일로 작성하세요
+"""
+    else:
+        solution_context = """
+[참고 솔루션: 매칭된 솔루션이 없습니다]
+학생의 코드를 기반으로 일반적인 힌트를 제공하세요.
+"""
+
+    # 초급 레벨(1-4)에서 전체 코드 금지 강화
+    code_limit_warning = ""
+    if hint_level <= 4:
+        code_limit_warning = """
+⛔⛔⛔ 최우선 규칙 - 코드 길이 제한 ⛔⛔⛔
+- code_example 필드에 10줄 이상의 코드를 절대 작성하지 마세요!
+- "전체 코드", "완성 코드", "정답 코드"라는 표현을 사용하지 마세요!
+- 오직 "다음 단계"에 해당하는 3-5줄만 제공하세요!
+- 이 규칙을 어기면 응답이 거부됩니다!
+"""
+
+    prompt = f"""당신은 코딩 테스트 힌트를 제공하는 AI 튜터입니다.
+{code_limit_warning}
 {purpose_context}
 
 {level_instruction}
@@ -833,6 +1610,7 @@ def build_prompt_node(state: HintState) -> HintState:
 ```python
 {state['user_code'][:1500]}
 ```
+{solution_context}
 
 [코드 분석 결과]
 - 테스트 통과율: {state['static_metrics'].get('test_pass_rate', 0)}%
@@ -849,32 +1627,31 @@ def build_prompt_node(state: HintState) -> HintState:
 {components_instruction}
 
 [중요 규칙]
-1. 직접적인 정답 코드를 제공하지 마세요
+1. 학생의 현재 코드를 "틀렸다"고 하지 마세요. 대신 "다음 단계"를 안내하세요
 2. 학생이 스스로 해결할 수 있도록 방향을 제시하세요
 3. 한국어로 친절하게 답변하세요
 4. JSON 형식으로 응답하세요
-
-응답 예시:
-{{
-    "summary": "힌트 요약 내용...",
-    "libraries": ["collections", "itertools"],
-    "code_example": "# 예시 코드\\ndef example_func():\\n    data = [1, 2, 3]\\n    return sum(data)",
-    "step_by_step": ["1단계: ...", "2단계: ..."],
-    "complexity_hint": "시간복잡도 O(n), 공간복잡도 O(1)",
-    "edge_cases": ["빈 배열 입력", "음수 값"],
-    "improvements": ["변수명 개선", "중복 코드 제거"]
-}}
+5. **code_example과 힌트는 반드시 참고 솔루션을 기반으로, 학생 코드 스타일을 유지하며 작성하세요**
+6. 학생의 접근 방식을 존중하고, 그 방식으로 문제를 풀 수 있도록 안내하세요
+{_get_preset_rules(preset, hint_level)}
 
 [중요: code_example은 리스트가 아닌 단일 문자열로 작성하세요. 줄바꿈은 \\n으로 표현합니다.]
 
-JSON으로 응답하세요:"""
+{_build_json_schema(custom_components, preset, hint_level)}"""
 
     state['llm_prompt'] = prompt
     return state
 
 
 def generate_hint_node(state: HintState) -> HintState:
-    """힌트 생성 노드 (GPT-4.1 호출)"""
+    """
+    힌트 생성 노드 (GPT-4.1 호출) + LLM 자기검증
+
+    자기검증 루프:
+    1. 힌트 생성
+    2. _verify_hint로 검증
+    3. 부적합 시 피드백 반영하여 재생성 (최대 2회)
+    """
     if state.get('error'):
         return state
 
@@ -886,33 +1663,99 @@ def generate_hint_node(state: HintState) -> HintState:
             return state
 
         client = OpenAI(api_key=ai_config.openai_api_key)
-        model_name = ai_config.model_name or 'gpt-4.1'
+        model_name = ai_config.model_name or 'gpt-5.1'
 
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {"role": "system", "content": "당신은 코딩 교육 전문가입니다. JSON 형식으로만 응답하세요."},
-                {"role": "user", "content": state['llm_prompt']}
-            ],
-            temperature=0.5,
-            max_tokens=1000
-        )
+        # 검증 관련 상태 초기화
+        hint_level = state.get('hint_level', 7)
+        preset = state.get('preset', '중급')
+        filtered_components = state.get('filtered_components', {})
 
-        response_text = response.choices[0].message.content.strip()
+        # 자기검증은 레벨 5 이상에서만 수행 (초급은 스킵 - 시간 절약)
+        # 초급(레벨 1-4)은 코드 예시를 포함하므로 생성 시간이 이미 길고,
+        # 레벨 위반 가능성도 낮음
+        should_verify = hint_level >= 5
+        max_retries = 2 if should_verify else 0
+        verification_feedback = None
+        final_hint_content = None
 
-        # JSON 파싱
-        try:
-            if '```json' in response_text:
-                response_text = response_text.split('```json')[1].split('```')[0]
-            elif '```' in response_text:
-                response_text = response_text.split('```')[1].split('```')[0]
+        for attempt in range(max_retries + 1):
+            # 프롬프트 구성 (재시도 시 피드백 반영)
+            current_prompt = state['llm_prompt']
+            if verification_feedback:
+                current_prompt += f"""
 
-            hint_content = json.loads(response_text)
-            state['hint_content'] = hint_content
-        except:
-            state['hint_content'] = {
-                'summary': response_text
-            }
+[⚠️ 이전 힌트 검증 실패 - 수정 필요]
+{verification_feedback}
+
+위 피드백을 반영하여 레벨 {hint_level} 규칙에 맞게 힌트를 다시 작성하세요."""
+
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": "당신은 코딩 교육 전문가입니다. JSON 형식으로만 응답하세요."},
+                    {"role": "user", "content": current_prompt}
+                ],
+                temperature=0.3,
+                max_tokens=1500  # 초급은 코드 포함으로 더 긴 응답 필요
+            )
+
+            response_text = response.choices[0].message.content.strip()
+
+            # JSON 파싱
+            try:
+                if '```json' in response_text:
+                    response_text = response_text.split('```json')[1].split('```')[0]
+                elif '```' in response_text:
+                    response_text = response_text.split('```')[1].split('```')[0]
+
+                hint_content = json.loads(response_text)
+            except:
+                hint_content = {'summary': response_text}
+
+            # 자기검증 수행 (레벨 5 이상만)
+            if not should_verify:
+                # 초급: 검증 스킵
+                final_hint_content = hint_content
+                final_hint_content['_verification'] = {
+                    'passed': True,
+                    'attempts': 1,
+                    'skipped': True,
+                    'reason': '초급 레벨은 자기검증 스킵'
+                }
+                break
+
+            verification = _verify_hint(
+                hint_content,
+                hint_level,
+                filtered_components,
+                preset,
+                ai_config
+            )
+
+            if verification["is_valid"]:
+                # 검증 통과
+                final_hint_content = hint_content
+                final_hint_content['_verification'] = {
+                    'passed': True,
+                    'attempts': attempt + 1
+                }
+                break
+            else:
+                # 검증 실패 - 피드백 저장 후 재시도
+                verification_feedback = verification["feedback"]
+                if verification["issues"]:
+                    verification_feedback += "\n문제점:\n- " + "\n- ".join(verification["issues"])
+
+                # 마지막 시도였다면 그대로 사용
+                if attempt == max_retries:
+                    final_hint_content = hint_content
+                    final_hint_content['_verification'] = {
+                        'passed': False,
+                        'attempts': attempt + 1,
+                        'issues': verification["issues"]
+                    }
+
+        state['hint_content'] = final_hint_content
 
     except Exception as e:
         state['error'] = f"힌트 생성 실패: {str(e)}"
@@ -921,13 +1764,24 @@ def generate_hint_node(state: HintState) -> HintState:
 
 
 def format_hint_node(state: HintState) -> HintState:
-    """최종 힌트 포맷팅 노드"""
+    """
+    최종 힌트 포맷팅 노드
+
+    사용자가 선택한 구성요소는 삭제하지 않음
+    COH 레벨에 따라 상세도만 조절 (프롬프트에서 처리)
+    프리셋별 구성요소 제한은 프론트엔드에서 처리
+    """
     if state.get('error'):
         state['final_hint'] = f"힌트 생성 중 오류가 발생했습니다: {state['error']}"
         state['hint_type'] = 'error'
         return state
 
     hint_content = state.get('hint_content', {})
+    hint_level = state.get('hint_level', 7)
+
+    # 사용자가 선택한 구성요소는 삭제하지 않음
+    # COH 레벨에 따라 상세도만 조절됨 (프롬프트에서 처리)
+
     branch = state.get('hint_branch', '')
 
     # 분기에 따른 힌트 타입 결정
@@ -946,20 +1800,50 @@ def format_hint_node(state: HintState) -> HintState:
     # 최종 힌트 포맷팅
     final_hint = hint_content.get('summary', '')
 
+    # libraries 처리 (문자열 리스트 또는 딕셔너리 리스트 대응)
     if hint_content.get('libraries'):
-        final_hint += f"\n\n📚 추천 라이브러리: {', '.join(hint_content['libraries'])}"
+        libs = hint_content['libraries']
+        if isinstance(libs, list) and len(libs) > 0:
+            if isinstance(libs[0], dict):
+                # 딕셔너리 리스트인 경우: name 또는 library 키에서 추출
+                lib_names = [lib.get('name') or lib.get('library') or str(lib) for lib in libs]
+            else:
+                # 문자열 리스트인 경우
+                lib_names = [str(lib) for lib in libs]
+            final_hint += f"\n\n📚 추천 라이브러리: {', '.join(lib_names)}"
 
+    # step_by_step 처리 (문자열 리스트 또는 딕셔너리 리스트 대응)
     if hint_content.get('step_by_step'):
-        final_hint += "\n\n📝 단계별 접근:\n" + "\n".join(hint_content['step_by_step'])
+        steps = hint_content['step_by_step']
+        if isinstance(steps, list) and len(steps) > 0:
+            if isinstance(steps[0], dict):
+                step_texts = [step.get('step') or step.get('description') or str(step) for step in steps]
+            else:
+                step_texts = [str(step) for step in steps]
+            final_hint += "\n\n📝 단계별 접근:\n" + "\n".join(step_texts)
 
     if hint_content.get('complexity_hint'):
         final_hint += f"\n\n⏱️ 복잡도 힌트: {hint_content['complexity_hint']}"
 
+    # edge_cases 처리 (문자열 리스트 또는 딕셔너리 리스트 대응)
     if hint_content.get('edge_cases'):
-        final_hint += "\n\n⚠️ 엣지 케이스:\n- " + "\n- ".join(hint_content['edge_cases'])
+        cases = hint_content['edge_cases']
+        if isinstance(cases, list) and len(cases) > 0:
+            if isinstance(cases[0], dict):
+                case_texts = [case.get('case') or case.get('description') or str(case) for case in cases]
+            else:
+                case_texts = [str(case) for case in cases]
+            final_hint += "\n\n⚠️ 엣지 케이스:\n- " + "\n- ".join(case_texts)
 
+    # improvements 처리 (문자열 리스트 또는 딕셔너리 리스트 대응)
     if hint_content.get('improvements'):
-        final_hint += "\n\n💡 개선 사항:\n- " + "\n- ".join(hint_content['improvements'])
+        imps = hint_content['improvements']
+        if isinstance(imps, list) and len(imps) > 0:
+            if isinstance(imps[0], dict):
+                imp_texts = [imp.get('improvement') or imp.get('description') or str(imp) for imp in imps]
+            else:
+                imp_texts = [str(imp) for imp in imps]
+            final_hint += "\n\n💡 개선 사항:\n- " + "\n- ".join(imp_texts)
 
     if hint_content.get('code_example'):
         code_example = hint_content['code_example']
@@ -1022,18 +1906,8 @@ def parallel_analysis_node(state: HintState) -> HintState:
 
 
 # 간단한 케이스 스킵용 정적 힌트 메시지
+# 분기 A(문법 오류)는 LLM 힌트 경로로 진행 (SKIP_HINTS에서 제외)
 SKIP_HINTS = {
-    'A': {  # 코드 없음 / 문법 오류
-        'message': """⚠️ 먼저 코드를 작성하거나 문법 오류를 수정해주세요.
-
-📝 기본 구조 힌트:
-1. `input()`으로 입력을 받으세요
-2. 문제의 조건에 맞게 로직을 작성하세요
-3. `print()`로 결과를 출력하세요
-
-💡 Python 기본 문법을 다시 확인해보세요.""",
-        'hint_type': 'syntax_fix'
-    },
     'C': {  # 첫 정답 축하
         'message': """🎉 축하합니다! 테스트를 처음 통과했습니다!
 
@@ -1111,13 +1985,17 @@ def skip_llm_node(state: HintState) -> HintState:
 
 def build_hint_graph():
     """
-    LangGraph 힌트 그래프 빌드 (병렬 분석 + 조건부 COH/LLM 스킵)
+    LangGraph 힌트 그래프 빌드 (solution_code 매칭 + 병렬 분석 + 조건부 COH/LLM 스킵)
 
     플로우:
-    input → purpose → parallel_analysis → branch → [조건부 분기 1: should_skip_coh]
+    input → solution_match → purpose → parallel_analysis → branch → [조건부 분기 1: should_skip_coh]
         - skip (A,C,E1): skip_llm → save → END
         - continue (B,D,E2,F): coh_check → coh_level → component_filter
                               → prompt → llm_hint → format → save → END
+
+    solution_match 노드:
+    - 사용자 코드와 가장 유사한 solution_code를 찾아 매칭
+    - 힌트 생성 시 매칭된 솔루션을 기반으로 "다음 단계" 안내
     """
     if not LANGGRAPH_AVAILABLE:
         return None
@@ -1126,6 +2004,7 @@ def build_hint_graph():
 
     # 노드 추가
     workflow.add_node("input_node", input_node)
+    workflow.add_node("solution_match_node", solution_match_node)  # 솔루션 매칭 노드 추가
     workflow.add_node("purpose_node", purpose_node)
     workflow.add_node("parallel_analysis_node", parallel_analysis_node)  # 병렬 분석
     workflow.add_node("branch_node", branch_decision_node)
@@ -1143,7 +2022,8 @@ def build_hint_graph():
 
     # 엣지 연결
     workflow.set_entry_point("input_node")
-    workflow.add_edge("input_node", "purpose_node")
+    workflow.add_edge("input_node", "solution_match_node")  # 솔루션 매칭 먼저
+    workflow.add_edge("solution_match_node", "purpose_node")
     workflow.add_edge("purpose_node", "parallel_analysis_node")  # 병렬 분석
     workflow.add_edge("parallel_analysis_node", "branch_node")
 
@@ -1186,21 +2066,70 @@ def get_hint_graph():
     return _hint_graph
 
 
-# ==================== 내부 함수 (hint_api.py에서 호출용) ====================
+# ==================== 실행 모드 설정 ====================
 
-def run_langgraph_hint(user, problem_id, user_code, preset='중급', custom_components=None, previous_hints=None):
+# 환경변수로 실행 모드 결정
+# 'local': Django 서버 내에서 직접 실행 (기본값)
+# 'runpod': Runpod Serverless로 위임
+HINT_EXECUTION_MODE = os.environ.get('HINT_EXECUTION_MODE', 'local').lower()
+
+
+def _get_execution_mode() -> str:
+    """현재 실행 모드 반환"""
+    return HINT_EXECUTION_MODE
+
+
+def _is_runpod_mode() -> bool:
+    """Runpod 모드인지 확인"""
+    return HINT_EXECUTION_MODE == 'runpod'
+
+
+def _run_via_runpod(user, problem_id, user_code, preset, custom_components, previous_hints):
     """
-    LangGraph 힌트 생성 내부 함수
-    hint_api.py에서 직접 호출 가능
+    Runpod Serverless를 통해 힌트 생성
 
-    Returns:
-        tuple: (success: bool, data: dict, error: str or None, status_code: int)
+    Django에서 DB 조회 후 Runpod으로 힌트 생성 요청을 전달합니다.
     """
-    if custom_components is None:
-        custom_components = {}
-    if previous_hints is None:
-        previous_hints = []
+    try:
+        from .hint_proxy import request_hint_via_runpod, is_runpod_available
 
+        if not is_runpod_available():
+            # Runpod 설정이 없으면 로컬 모드로 폴백
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning("[Runpod] Runpod 설정이 없습니다. Local 모드로 폴백합니다.")
+            return _run_local_langgraph(user, problem_id, user_code, preset, custom_components, previous_hints)
+
+        # hint_proxy를 통해 Runpod 호출
+        success, data, error, status_code = request_hint_via_runpod(
+            problem_id=problem_id,
+            user_code=user_code,
+            user=user,
+            preset=preset,
+            custom_components=custom_components
+        )
+
+        if success:
+            # Runpod 응답에 method 표시 추가
+            if data:
+                data['method'] = 'runpod'
+            return (True, data, None, 200)
+        else:
+            return (False, None, error, status_code)
+
+    except ImportError as e:
+        return (False, None, f'hint_proxy 모듈을 찾을 수 없습니다: {str(e)}', 500)
+    except Exception as e:
+        import traceback
+        return (False, None, f'Runpod 호출 오류: {str(e)}\n{traceback.format_exc()}', 500)
+
+
+def _run_local_langgraph(user, problem_id, user_code, preset, custom_components, previous_hints):
+    """
+    Local 모드에서 직접 LangGraph 실행 (기존 로직)
+
+    이 함수는 run_langgraph_hint의 Local 모드 로직을 분리한 것입니다.
+    """
     if not LANGGRAPH_AVAILABLE:
         return (
             False,
@@ -1212,7 +2141,140 @@ def run_langgraph_hint(user, problem_id, user_code, preset='중급', custom_comp
     if not problem_id:
         return (False, None, '문제 ID가 필요합니다.', 400)
 
-    # 초기 상태 구성 (COH 필드 포함)
+    # 초기 상태 구성 (COH 필드 + solution_code 필드 포함)
+    initial_state: HintState = {
+        'problem_id': str(problem_id),
+        'problem_title': '',
+        'problem_description': '',
+        'user_code': user_code,
+        'code': user_code,
+        'previous_hints': previous_hints,
+        'preset': preset,
+        'custom_components': custom_components,
+        'user_id': user.id,
+        'solutions': [],
+        'matched_solution': None,
+        'solution_similarity': 0.0,
+        'static_metrics': {},
+        'llm_metrics': {},
+        'current_star_count': 0,
+        'hint_purpose': '',
+        'hint_branch': '',
+        'purpose_context': '',
+        'weak_metrics': [],
+        'coh_depth': 0,
+        'coh_max_depth': COH_MAX_DEPTH.get(preset, 2),
+        'hint_level': COH_BASE_LEVEL.get(preset, 7),
+        'code_hash': '',
+        'coh_decision': '',
+        'filtered_components': {},
+        'blocked_components': [],
+        'coh_status': {},
+        'llm_prompt': '',
+        'hint_content': {},
+        'final_hint': '',
+        'hint_type': '',
+        'error': None
+    }
+
+    import sys
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        graph = get_hint_graph()
+        if graph is None:
+            return (False, None, 'LangGraph 초기화 실패', 500)
+
+        final_state = graph.invoke(initial_state)
+
+        # 힌트 기록 저장
+        hint_record = HintRequest.objects.create(
+            user=user,
+            problem_str_id=problem_id,
+            user_code=user_code,
+            hint_response=final_state.get('final_hint', ''),
+            hint_type=final_state.get('hint_type', 'langgraph'),
+            is_langgraph=True,
+            code_hash=final_state.get('code_hash', ''),
+            hint_branch=final_state.get('hint_branch', ''),
+            coh_depth=final_state.get('coh_depth', 0)
+        )
+
+        matched_solution = final_state.get('matched_solution')
+        solution_info = None
+        if matched_solution:
+            solution_info = {
+                'approach': matched_solution.get('approach', ''),
+                'description': matched_solution.get('description', ''),
+                'similarity': final_state.get('solution_similarity', 0)
+            }
+
+        result_data = {
+            'hint': final_state.get('final_hint', ''),
+            'hint_content': final_state.get('hint_content', {}),
+            'hint_type': final_state.get('hint_type', ''),
+            'hint_branch': final_state.get('hint_branch', ''),
+            'current_star': final_state.get('current_star_count', 0),
+            'hint_purpose': final_state.get('hint_purpose', ''),
+            'static_metrics': final_state.get('static_metrics', {}),
+            'llm_metrics': final_state.get('llm_metrics', {}),
+            'weak_metrics': final_state.get('weak_metrics', []),
+            'solution_match': solution_info,
+            'solution_similarity': final_state.get('solution_similarity', 0),
+            'coh_status': final_state.get('coh_status', {}),
+            'hint_level': final_state.get('hint_level', 7),
+            'coh_depth': final_state.get('coh_depth', 0),
+            'coh_decision': final_state.get('coh_decision', ''),
+            'code_hash': final_state.get('code_hash', ''),
+            'filtered_components': final_state.get('filtered_components', {}),
+            'blocked_components': final_state.get('blocked_components', []),
+            'method': 'langgraph_local'
+        }
+
+        return (True, result_data, None, 200)
+
+    except Exception as e:
+        import traceback
+        return (False, None, f'LangGraph 실행 오류: {str(e)}\n{traceback.format_exc()}', 500)
+
+
+# ==================== 내부 함수 (hint_api.py에서 호출용) ====================
+
+def run_langgraph_hint(user, problem_id, user_code, preset='중급', custom_components=None, previous_hints=None):
+    """
+    LangGraph 힌트 생성 내부 함수
+    hint_api.py에서 직접 호출 가능
+
+    실행 모드에 따라:
+    - Local 모드: Django 내에서 직접 LangGraph 실행
+    - Runpod 모드: hint_proxy.request_hint_via_runpod 호출
+
+    Returns:
+        tuple: (success: bool, data: dict, error: str or None, status_code: int)
+    """
+    if custom_components is None:
+        custom_components = {}
+    if previous_hints is None:
+        previous_hints = []
+
+    # Runpod 모드인 경우 hint_proxy로 위임
+    if _is_runpod_mode():
+        return _run_via_runpod(user, problem_id, user_code, preset, custom_components, previous_hints)
+
+    # Local 모드: 기존 로직 실행
+    if not LANGGRAPH_AVAILABLE:
+        return (
+            False,
+            None,
+            'LangGraph가 설치되지 않았습니다. pip install langgraph langchain-core를 실행하세요.',
+            503
+        )
+
+    if not problem_id:
+        return (False, None, '문제 ID가 필요합니다.', 400)
+
+    # 초기 상태 구성 (COH 필드 + solution_code 필드 포함)
     initial_state: HintState = {
         'problem_id': str(problem_id),
         'problem_title': '',
@@ -1223,6 +2285,11 @@ def run_langgraph_hint(user, problem_id, user_code, preset='중급', custom_comp
         'preset': preset,
         'custom_components': custom_components,
         'user_id': user.id,
+        # solution_code 관련 필드 초기화
+        'solutions': [],  # input_node에서 로드됨
+        'matched_solution': None,  # solution_match_node에서 설정됨
+        'solution_similarity': 0.0,  # solution_match_node에서 설정됨
+        # 분석 결과 필드
         'static_metrics': {},
         'llm_metrics': {},
         'current_star_count': 0,
@@ -1288,6 +2355,16 @@ def run_langgraph_hint(user, problem_id, user_code, preset='중급', custom_comp
         )
         logger.error(f"[LangGraph DEBUG] HintRequest saved: id={hint_record.id}, branch={final_state.get('hint_branch')}, code_hash={final_state.get('code_hash', '')[:8]}...")
 
+        # 매칭된 솔루션 정보 (민감한 solution_code는 제외)
+        matched_solution = final_state.get('matched_solution')
+        solution_info = None
+        if matched_solution:
+            solution_info = {
+                'approach': matched_solution.get('approach', ''),
+                'description': matched_solution.get('description', ''),
+                'similarity': final_state.get('solution_similarity', 0)
+            }
+
         result_data = {
             'hint': final_state.get('final_hint', ''),
             'hint_content': final_state.get('hint_content', {}),
@@ -1298,6 +2375,9 @@ def run_langgraph_hint(user, problem_id, user_code, preset='중급', custom_comp
             'static_metrics': final_state.get('static_metrics', {}),
             'llm_metrics': final_state.get('llm_metrics', {}),
             'weak_metrics': final_state.get('weak_metrics', []),
+            # solution_code 매칭 정보
+            'solution_match': solution_info,
+            'solution_similarity': final_state.get('solution_similarity', 0),
             # COH 관련 정보 추가
             'coh_status': final_state.get('coh_status', {}),
             'hint_level': final_state.get('hint_level', 7),
@@ -1379,23 +2459,38 @@ def request_hint_langgraph(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_langgraph_status(request):
-    """LangGraph 시스템 상태 확인 (COH 정보 포함)"""
+    """LangGraph 시스템 상태 확인 (COH 정보 + Runpod 모드 포함)"""
+    # Runpod 가용성 확인
+    try:
+        from .hint_proxy import is_runpod_available
+        runpod_available = is_runpod_available()
+    except ImportError:
+        runpod_available = False
+
     return Response({
         'success': True,
         'data': {
             'langgraph_available': LANGGRAPH_AVAILABLE,
             'openai_available': OPENAI_AVAILABLE,
             'graph_initialized': get_hint_graph() is not None if LANGGRAPH_AVAILABLE else False,
+            # 실행 모드 정보
+            'execution_mode': {
+                'current_mode': _get_execution_mode(),
+                'is_runpod_mode': _is_runpod_mode(),
+                'runpod_available': runpod_available,
+                'description': 'Runpod Serverless로 힌트 생성 위임' if _is_runpod_mode() else 'Django 내에서 직접 LangGraph 실행',
+                'env_var': 'HINT_EXECUTION_MODE (local|runpod)'
+            },
             'nodes': [
-                'input_node - 입력 검증 및 문제 로드',
+                'input_node - 입력 검증 및 문제/솔루션 로드',
+                'solution_match_node - 사용자 코드와 가장 유사한 솔루션 매칭',
                 'purpose_node - 별점 조회 및 목적 결정',
-                'static_node - 정적 분석 (6개 메트릭)',
-                'llm_eval_node - LLM 평가 (6개 메트릭)',
+                'parallel_analysis_node - 정적 분석 + LLM 평가 (병렬)',
                 'branch_node - 분기 결정 (A~F)',
                 'coh_check_node - COH 깊이 계산',
                 'coh_level_node - 힌트 레벨 계산 (1-9)',
                 'component_filter_node - 구성요소 필터링',
-                'prompt_node - 프롬프트 구성',
+                'prompt_node - 프롬프트 구성 (solution_code 기반)',
                 'llm_hint_node - 힌트 생성 (GPT-4.1)',
                 'format_node - 힌트 포맷팅',
                 'save_node - 저장'
@@ -1411,6 +2506,20 @@ def get_langgraph_status(request):
             },
             'presets': ['초급', '중급', '고급'],
             'components': ['libraries', 'code_example', 'step_by_step', 'complexity_hint', 'edge_cases', 'improvements'],
+            # solution_code 매칭 시스템
+            'solution_matching': {
+                'description': '사용자 코드와 가장 유사한 solution_code를 찾아 힌트 제공',
+                'matching_algorithm': {
+                    'code_similarity': '60% 가중치 - difflib.SequenceMatcher 기반 유사도',
+                    'pattern_similarity': '40% 가중치 - 코드 패턴 (입력 방식, 자료구조, 알고리즘) 비교'
+                },
+                'philosophy': [
+                    '사용자의 현재 코드를 "틀렸다"고 하지 않음',
+                    '사용자의 접근 방식을 존중',
+                    '"다음 단계"를 안내하는 방식으로 힌트 제공',
+                    'code_example은 매칭된 solution_code를 기반으로 생성'
+                ]
+            },
             # COH 관련 정보
             'coh_system': {
                 'description': 'Chain of Hint - 같은 유형의 힌트 반복 요청 시 점점 상세해지는 시스템',
