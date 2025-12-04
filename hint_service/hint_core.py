@@ -398,7 +398,7 @@ JSON 형식으로만 응답:
         response = client.chat.completions.create(
             model=FIXED_MODEL_NAME,
             messages=[{"role": "user", "content": eval_prompt}],
-            temperature=0.3,
+            temperature=0.1,
             max_tokens=200
         )
 
@@ -761,8 +761,8 @@ def _verify_hint(
         5: "실제 Python 코드가 있으면 안 됩니다. 의사코드로만 설명해야 합니다.",
         6: "코드가 있으면 안 됩니다. 알고리즘/자료구조 이름만 언급해야 합니다.",
         7: "코드가 있으면 안 됩니다. 방향만 제시해야 합니다.",
-        8: "코드가 있으면 안 됩니다. 키워드 1-2개만 제시해야 합니다.",
-        9: "코드가 있으면 안 됩니다. 오직 유도 질문만 있어야 합니다."
+        8: "코드가 있으면 안 됩니다. summary는 반드시 완전한 문장이어야 합니다. '키워드, 키워드' 형태의 쉼표로 구분된 단어 나열은 절대 금지입니다.",
+        9: "코드가 있으면 안 됩니다. summary는 반드시 질문 형태의 완전한 문장이어야 합니다. 키워드 나열 금지, 오직 유도 질문만 있어야 합니다."
     }
 
     criterion = level_criteria.get(hint_level, level_criteria[7])
@@ -799,7 +799,7 @@ JSON으로 응답하세요:
                 {"role": "system", "content": "당신은 힌트 품질 검증 전문가입니다. JSON 형식으로만 응답하세요."},
                 {"role": "user", "content": verify_prompt}
             ],
-            temperature=0.2,
+            temperature=0.1,
             max_tokens=500
         )
 
@@ -1052,26 +1052,31 @@ board = []
         8: f"""
 [레벨 8/9 - 방향 제시 (고급 COH1)]
 
-★ summary 작성 규칙 (최우선) ★
-summary는 반드시 아래 형식의 완전한 문장으로 작성하세요:
+⛔⛔⛔ 최우선 금지 규칙 ⛔⛔⛔
+summary에 쉼표(,)로 구분된 키워드/명사 나열 절대 금지!
+작성 후 반드시 확인: summary에 "A, B"나 "A, B, C" 패턴이 있으면 다시 작성하세요!
+
+⛔ 금지 패턴 (이렇게 쓰면 안 됨):
+- "순환 이동, 곱의 합" ← 금지!
+- "부분 보드, 패턴 비교" ← 금지!
+- "브루트포스, 완전탐색" ← 금지!
+- "DFS, BFS" ← 금지!
+- 어떤 형태든 "명사, 명사" 패턴 금지!
+
+★ summary 작성 규칙 ★
+반드시 주어+서술어가 있는 완전한 문장으로 작성:
 - "이 문제는 ~하는 방식을 고려해볼 수 있습니다."
 - "~하는 방법을 생각해보세요."
 - "~에 집중해보시면 좋겠습니다."
 
-⛔ 잘못된 예 (키워드 나열 - 절대 금지!):
-- "부분 보드, 패턴 비교를 생각해보세요." ← 금지! (키워드 나열)
-- "브루트포스, 완전탐색을 고려해보세요." ← 금지! (키워드 나열)
-- "DFS, BFS를 사용해보세요." ← 금지! (키워드 나열)
-
-✅ 올바른 예 (설명적인 완전한 문장):
-- "이 문제는 주어진 보드에서 특정 크기의 영역을 하나씩 확인하는 방식을 고려해볼 수 있습니다."
+✅ 올바른 예:
+- "이 문제는 배열의 요소를 한 칸씩 이동시키면서 각 위치에서의 값을 계산하는 방식을 고려해볼 수 있습니다."
 - "원본과 목표를 비교하여 다른 부분을 찾는 방법을 생각해보세요."
 - "모든 가능한 위치를 순회하며 조건을 확인하는 접근법이 있습니다."
 
 ★ 출력 형식 ★
-- summary: 위 형식의 설명적인 완전한 문장 1-2개 (키워드 나열 금지!)
-- step_by_step: 제공하지 않음
-- code_example: 제공하지 않음
+- summary: 완전한 문장 1-2개 (쉼표로 키워드 나열 금지!)
+- complexity_hint, edge_cases, improvements: 사용자가 선택한 경우에만 질문 형태로 제공
 """,
 
         9: f"""
@@ -1090,8 +1095,7 @@ summary는 반드시 아래 형식의 완전한 질문 문장으로 작성하세
 
 ★ 출력 형식 ★
 - summary: 위 형식의 완전한 질문 문장 1-2개
-- step_by_step: 제공하지 않음
-- code_example: 제공하지 않음
+- complexity_hint, edge_cases, improvements: 사용자가 선택한 경우에만 질문 형태로 제공
 """
     }
 
@@ -1103,11 +1107,13 @@ summary는 반드시 아래 형식의 완전한 질문 문장으로 작성하세
         components_instruction = """
 [응답에 포함할 항목]
 - summary: 완전한 문장으로 방향 제시 (예: "이 문제는 ~하는 방식을 고려해볼 수 있습니다.")
+(사용자가 선택한 경우 아래 항목도 포함)
 """
     elif hint_level == 9:
         components_instruction = """
 [응답에 포함할 항목]
 - summary: 완전한 질문 문장 (예: "~은 어떻게 처리하면 좋을까요?")
+(사용자가 선택한 경우 아래 항목도 포함)
 """
     else:
         components_instruction = """
@@ -1277,7 +1283,7 @@ def generate_hint_node(state: HintState) -> HintState:
                     {"role": "system", "content": "당신은 코딩 교육 전문가입니다. JSON 형식으로만 응답하세요."},
                     {"role": "user", "content": current_prompt}
                 ],
-                temperature=0.3,
+                temperature=0.1,
                 max_tokens=1500  # 초급은 코드 포함으로 더 긴 응답 필요
             )
 

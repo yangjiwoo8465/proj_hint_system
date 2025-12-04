@@ -1,48 +1,78 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
+import surveyData from '../../data/surveyQuestions.json'
 import './Survey.css'
 
 function Survey() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
+  const [currentExperience, setCurrentExperience] = useState('intermediate')
   const [formData, setFormData] = useState({
     programming_experience: 'intermediate',
     learning_goals: [],
     interested_topics: [],
+    weak_topics: [],
     preferred_difficulty: 'medium',
-    daily_problem_goal: 2
+    target_type: 'daily',
+    daily_problem_goal: 2,
+    weekly_problem_goal: 14
   })
 
-  const learningGoalOptions = [
-    '알고리즘 마스터',
-    '자료구조 이해',
-    '코딩테스트 준비',
-    '문제 해결 능력 향상',
-    '프로그래밍 실력 향상'
-  ]
+  const { questions } = surveyData
 
-  const topicOptions = [
-    '배열', '문자열', '정렬', '탐색',
-    'DP', '그리디', '그래프', 'DFS/BFS',
-    '해시', '스택/큐', '트리', '이분탐색'
-  ]
+  // 경험 레벨에 따라 필터링된 옵션 반환
+  const getFilteredOptions = (question) => {
+    if (question.options) {
+      return question.options
+    }
+    if (question.option_groups) {
+      let allOptions = []
+      question.option_groups.forEach(group => {
+        if (group.show_for.includes(currentExperience)) {
+          allOptions = [...allOptions, ...group.options.map(opt => ({
+            ...opt,
+            groupName: group.group_name
+          }))]
+        }
+      })
+      return allOptions
+    }
+    return []
+  }
 
-  const handleGoalToggle = (goal) => {
+  // 경험 레벨 변경 시 추천값 업데이트
+  const handleExperienceChange = (value) => {
+    setCurrentExperience(value)
     setFormData(prev => ({
       ...prev,
-      learning_goals: prev.learning_goals.includes(goal)
-        ? prev.learning_goals.filter(g => g !== goal)
-        : [...prev.learning_goals, goal]
+      programming_experience: value
     }))
   }
 
-  const handleTopicToggle = (topic) => {
+  // 다중 선택 토글
+  const handleMultipleToggle = (field, value) => {
     setFormData(prev => ({
       ...prev,
-      interested_topics: prev.interested_topics.includes(topic)
-        ? prev.interested_topics.filter(t => t !== topic)
-        : [...prev.interested_topics, topic]
+      [field]: prev[field].includes(value)
+        ? prev[field].filter(v => v !== value)
+        : [...prev[field], value]
+    }))
+  }
+
+  // 단일 선택
+  const handleSingleSelect = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  // 슬라이더 변경
+  const handleSliderChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: parseInt(value)
     }))
   }
 
@@ -77,181 +107,213 @@ function Survey() {
     }
   }
 
+  // 질문 1: 프로그래밍 경험
+  const renderExperienceQuestion = (question) => (
+    <div className="survey-section" key={question.id}>
+      <h3>{question.question}</h3>
+      <p className="section-description">{question.description}</p>
+      <div className="radio-group">
+        {question.options.map(option => (
+          <label
+            key={option.value}
+            className={`radio-option ${formData.programming_experience === option.value ? 'selected' : ''}`}
+          >
+            <input
+              type="radio"
+              name="programming_experience"
+              value={option.value}
+              checked={formData.programming_experience === option.value}
+              onChange={() => handleExperienceChange(option.value)}
+            />
+            <div className="option-content">
+              <div className="option-title">{option.label}</div>
+              <div className="option-description">{option.description}</div>
+            </div>
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+
+  // 질문 2: 학습 목표 (다중 선택)
+  const renderGoalsQuestion = (question) => (
+    <div className="survey-section" key={question.id}>
+      <h3>{question.question}</h3>
+      <p className="section-description">{question.description}</p>
+      <div className="checkbox-grid">
+        {question.options.map(option => (
+          <label
+            key={option.value}
+            className={`checkbox-option ${formData.learning_goals.includes(option.value) ? 'selected' : ''}`}
+          >
+            <input
+              type="checkbox"
+              checked={formData.learning_goals.includes(option.value)}
+              onChange={() => handleMultipleToggle('learning_goals', option.value)}
+            />
+            <span>{option.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+
+  // 질문 3, 4: 관심 분야 / 보완 분야 (그룹별 다중 선택)
+  const renderTopicsQuestion = (question, field) => {
+    const filteredOptions = getFilteredOptions(question)
+    const selectedValues = formData[field]
+
+    // 그룹별로 옵션 분류
+    const groupedOptions = {}
+    filteredOptions.forEach(opt => {
+      const groupName = opt.groupName || '기본'
+      if (!groupedOptions[groupName]) {
+        groupedOptions[groupName] = []
+      }
+      groupedOptions[groupName].push(opt)
+    })
+
+    return (
+      <div className="survey-section" key={question.id}>
+        <h3>{question.question}</h3>
+        <p className="section-description">{question.description}</p>
+
+        {Object.entries(groupedOptions).map(([groupName, options]) => (
+          <div key={groupName} className="option-group">
+            <h4 className="group-title">{groupName}</h4>
+            <div className="checkbox-grid topics-grid">
+              {options.map(option => (
+                <label
+                  key={option.value}
+                  className={`checkbox-option topic-option ${selectedValues.includes(option.value) ? 'selected' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedValues.includes(option.value)}
+                    onChange={() => handleMultipleToggle(field, option.value)}
+                  />
+                  <div className="topic-content">
+                    <span className="topic-icon">{option.icon}</span>
+                    <span className="topic-label">{option.label}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // 질문 5: 선호 난이도
+  const renderDifficultyQuestion = (question) => (
+    <div className="survey-section" key={question.id}>
+      <h3>{question.question}</h3>
+      <p className="section-description">{question.description}</p>
+      <div className="radio-group difficulty-group">
+        {question.options.map(option => (
+          <label
+            key={option.value}
+            className={`radio-option difficulty-option ${formData.preferred_difficulty === option.value ? 'selected' : ''}`}
+          >
+            <input
+              type="radio"
+              name="preferred_difficulty"
+              value={option.value}
+              checked={formData.preferred_difficulty === option.value}
+              onChange={() => handleSingleSelect('preferred_difficulty', option.value)}
+            />
+            <div className="option-content">
+              <span className="difficulty-icon">{option.icon}</span>
+              <div className="option-title">{option.label}</div>
+              <div className="option-description">{option.description}</div>
+            </div>
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+
+  // 질문 6: 학습 목표 설정 (슬라이더)
+  const renderTargetQuestion = (question) => {
+    const currentSlider = question.sliders[formData.target_type]
+    const recommendedValue = currentSlider.recommendations[currentExperience]?.value || currentSlider.default
+
+    return (
+      <div className="survey-section" key={question.id}>
+        <h3>{question.question}</h3>
+        <p className="section-description">{question.description}</p>
+
+        {/* 하루/주간 선택 */}
+        <div className="target-type-selector">
+          {question.select_options.map(option => (
+            <button
+              key={option.value}
+              type="button"
+              className={`target-type-btn ${formData.target_type === option.value ? 'active' : ''}`}
+              onClick={() => handleSingleSelect('target_type', option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 슬라이더 */}
+        <div className="slider-container">
+          <div className="slider-header">
+            <span>{currentSlider.label}</span>
+            <span className="slider-value">
+              {formData.target_type === 'daily' ? formData.daily_problem_goal : formData.weekly_problem_goal}
+              {currentSlider.unit}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={currentSlider.min}
+            max={currentSlider.max}
+            step={currentSlider.step}
+            value={formData.target_type === 'daily' ? formData.daily_problem_goal : formData.weekly_problem_goal}
+            onChange={(e) => handleSliderChange(
+              formData.target_type === 'daily' ? 'daily_problem_goal' : 'weekly_problem_goal',
+              e.target.value
+            )}
+            className="goal-slider"
+          />
+          <div className="slider-labels">
+            <span>{currentSlider.min}{currentSlider.unit}</span>
+            <span>{currentSlider.max}{currentSlider.unit}</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="survey-page">
       <div className="survey-header">
-        <h1>학습 설문조사</h1>
-        <p>당신에게 맞춤화된 학습 로드맵을 만들어드립니다</p>
+        <h1>{surveyData.survey_title}</h1>
+        <p>{surveyData.survey_description}</p>
       </div>
 
       <form className="survey-form" onSubmit={handleSubmit}>
-        {/* 프로그래밍 경험 */}
-        <div className="survey-section">
-          <h3>프로그래밍 경험</h3>
-          <p className="section-description">현재 프로그래밍 경험 수준을 선택해주세요</p>
-
-          <div className="radio-group">
-            <label className={`radio-option ${formData.programming_experience === 'beginner' ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="programming_experience"
-                value="beginner"
-                checked={formData.programming_experience === 'beginner'}
-                onChange={(e) => setFormData({...formData, programming_experience: e.target.value})}
-              />
-              <div className="option-content">
-                <div className="option-title">초급 (0-1년)</div>
-                <div className="option-description">프로그래밍을 이제 막 시작했어요</div>
-              </div>
-            </label>
-
-            <label className={`radio-option ${formData.programming_experience === 'intermediate' ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="programming_experience"
-                value="intermediate"
-                checked={formData.programming_experience === 'intermediate'}
-                onChange={(e) => setFormData({...formData, programming_experience: e.target.value})}
-              />
-              <div className="option-content">
-                <div className="option-title">중급 (1-3년)</div>
-                <div className="option-description">기본적인 프로그래밍은 할 수 있어요</div>
-              </div>
-            </label>
-
-            <label className={`radio-option ${formData.programming_experience === 'advanced' ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="programming_experience"
-                value="advanced"
-                checked={formData.programming_experience === 'advanced'}
-                onChange={(e) => setFormData({...formData, programming_experience: e.target.value})}
-              />
-              <div className="option-content">
-                <div className="option-title">고급 (3년 이상)</div>
-                <div className="option-description">다양한 프로젝트 경험이 있어요</div>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        {/* 학습 목표 */}
-        <div className="survey-section">
-          <h3>학습 목표</h3>
-          <p className="section-description">달성하고 싶은 목표를 모두 선택해주세요 (중복 선택 가능)</p>
-
-          <div className="checkbox-grid">
-            {learningGoalOptions.map(goal => (
-              <label
-                key={goal}
-                className={`checkbox-option ${formData.learning_goals.includes(goal) ? 'selected' : ''}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={formData.learning_goals.includes(goal)}
-                  onChange={() => handleGoalToggle(goal)}
-                />
-                <span>{goal}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* 관심 분야 */}
-        <div className="survey-section">
-          <h3>관심 분야</h3>
-          <p className="section-description">학습하고 싶은 주제를 모두 선택해주세요 (중복 선택 가능)</p>
-
-          <div className="checkbox-grid">
-            {topicOptions.map(topic => (
-              <label
-                key={topic}
-                className={`checkbox-option ${formData.interested_topics.includes(topic) ? 'selected' : ''}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={formData.interested_topics.includes(topic)}
-                  onChange={() => handleTopicToggle(topic)}
-                />
-                <span>{topic}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* 선호 난이도 */}
-        <div className="survey-section">
-          <h3>선호 난이도</h3>
-          <p className="section-description">학습하고 싶은 문제의 난이도를 선택해주세요</p>
-
-          <div className="radio-group">
-            <label className={`radio-option ${formData.preferred_difficulty === 'easy' ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="preferred_difficulty"
-                value="easy"
-                checked={formData.preferred_difficulty === 'easy'}
-                onChange={(e) => setFormData({...formData, preferred_difficulty: e.target.value})}
-              />
-              <div className="option-content">
-                <div className="option-title">쉬움 (Level 1-5)</div>
-                <div className="option-description">기초부터 차근차근 배우고 싶어요</div>
-              </div>
-            </label>
-
-            <label className={`radio-option ${formData.preferred_difficulty === 'medium' ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="preferred_difficulty"
-                value="medium"
-                checked={formData.preferred_difficulty === 'medium'}
-                onChange={(e) => setFormData({...formData, preferred_difficulty: e.target.value})}
-              />
-              <div className="option-content">
-                <div className="option-title">중간 (Level 6-10)</div>
-                <div className="option-description">적당한 난이도로 실력을 키우고 싶어요</div>
-              </div>
-            </label>
-
-            <label className={`radio-option ${formData.preferred_difficulty === 'hard' ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="preferred_difficulty"
-                value="hard"
-                checked={formData.preferred_difficulty === 'hard'}
-                onChange={(e) => setFormData({...formData, preferred_difficulty: e.target.value})}
-              />
-              <div className="option-content">
-                <div className="option-title">어려움 (Level 11-15)</div>
-                <div className="option-description">도전적인 문제로 성장하고 싶어요</div>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        {/* 하루 목표 문제 수 */}
-        <div className="survey-section">
-          <h3>하루 목표 문제 수</h3>
-          <p className="section-description">매일 풀고 싶은 문제 개수를 선택해주세요</p>
-
-          <div className="number-selector">
-            <button
-              type="button"
-              className="number-btn"
-              onClick={() => setFormData(prev => ({...prev, daily_problem_goal: Math.max(1, prev.daily_problem_goal - 1)}))}
-            >
-              -
-            </button>
-            <div className="number-display">{formData.daily_problem_goal}개</div>
-            <button
-              type="button"
-              className="number-btn"
-              onClick={() => setFormData(prev => ({...prev, daily_problem_goal: Math.min(10, prev.daily_problem_goal + 1)}))}
-            >
-              +
-            </button>
-          </div>
-        </div>
+        {questions.map(question => {
+          switch (question.id) {
+            case 1:
+              return renderExperienceQuestion(question)
+            case 2:
+              return renderGoalsQuestion(question)
+            case 3:
+              return renderTopicsQuestion(question, 'interested_topics')
+            case 4:
+              return renderTopicsQuestion(question, 'weak_topics')
+            case 5:
+              return renderDifficultyQuestion(question)
+            case 6:
+              return renderTargetQuestion(question)
+            default:
+              return null
+          }
+        })}
 
         <button type="submit" className="submit-btn" disabled={loading}>
           {loading ? '제출 중...' : '설문 완료 및 로드맵 생성'}

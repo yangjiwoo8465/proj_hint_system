@@ -446,7 +446,24 @@ function MyPage() {
 
           {activeTab === 'settings' && (
             <div className="settings-content">
-              <h2>개인 정보 수정</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                <button
+                  className="back-btn"
+                  onClick={() => setActiveTab('dashboard')}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    background: '#000',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    marginBottom: '2rem'
+                  }}
+                >
+                  ← 뒤로가기
+                </button>
+                <h2>개인 정보 수정</h2>
+              </div>
 
               <div className="profile-card">
                 <div className="profile-header">

@@ -306,6 +306,13 @@
   color: #e0a800;
 }
 
+/* 별점 컬럼 */
+.star-column {
+  text-align: center;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
 /* 반응형 */
 @media (max-width: 1024px) {
   .filter-row {
